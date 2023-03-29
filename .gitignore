@@ -1,0 +1,6 @@
+./vscode
+*.log
+*.out
+*.error
+data/arxiv
+.DS_Store

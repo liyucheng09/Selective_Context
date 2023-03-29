@@ -6,9 +6,9 @@ output_dir = /vol/research/lyc/arxiv
 executable    = $ENV(HOME)/.conda/envs/lyc/bin/python
 arguments     = $ENV(HOME)/LLMs_Memorize/data/crawler.py $(output_dir)
 
-universe         = vanilla
-# universe         = docker
-# docker_image     = nvidia/cuda:10.2-cudnn7-runtime-ubuntu16.04
+# universe         = vanilla
+universe         = docker
+docker_image     = nvidia/cuda:10.2-cudnn7-runtime-ubuntu16.04
 
 log    = Arxiv.c$(cluster).p$(process).log
 output = Arxiv.c$(cluster).p$(process).out
@@ -22,14 +22,14 @@ environment = mount=/vol/research/lyc
 # -------------------------------------
 # Requirements for the Job (Requirements are explained in further detail in example09.submit_file)
 # NOTE: HasStornext is not valid on orca.
-# requirements = (CUDACapability > 2.0)
+requirements = (CUDACapability > 2.0)
 
 # --------------------------------------
 # Resources
 #request_GPUs     = 1
 # this needs to be specified for the AI@Surrey cluster if requesting a GPU
 #+GPUMem          = 10000
-request_CPUs     = 1
+request_CPUs     = 4
 request_memory   = 8G
 
 #This job will complete in less than 1 hour

@@ -4,3 +4,4 @@
 *.error
 data/arxiv
 .DS_Store
+__pycache__/

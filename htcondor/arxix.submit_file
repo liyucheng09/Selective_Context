@@ -1,18 +1,18 @@
 JobBatchName = "Arxiv"
 
-cwd = /user/HS502/yl02706/
+# cwd = /user/HS502/yl02706/LLMs_Memorize
 output_dir = /vol/research/lyc/arxiv
 
 executable    = $ENV(HOME)/.conda/envs/lyc/bin/python
-arguments     = $ENV(HOME)/EmpathicChat/data/crawler/crawler.py $(output_dir)
+arguments     = $ENV(HOME)/LLMs_Memorize/data/crawler.py $(output_dir)
 
 universe         = vanilla
 # universe         = docker
 # docker_image     = nvidia/cuda:10.2-cudnn7-runtime-ubuntu16.04
 
-log    = Redditor.c$(cluster).p$(process).log
-output = Redditor.c$(cluster).p$(process).out
-error  = Redditor.c$(cluster).p$(process).error
+log    = Arxiv.c$(cluster).p$(process).log
+output = Arxiv.c$(cluster).p$(process).out
+error  = Arxiv.c$(cluster).p$(process).error
 
 should_transfer_files = YES
 

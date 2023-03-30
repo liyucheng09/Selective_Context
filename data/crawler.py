@@ -10,9 +10,12 @@ import shutil
 import logging
 import json
 import re
+import time
 
-def resolve_input_commands(latex_code, base_dir):
-    input_pattern = re.compile(r"\\input\{(.*?)\}")
+def resolve_input_commands(latex_code, base_dir="."):
+    input_pattern = re.compile(r"(?<!\\)\\input\{(.*?)\}")
+    comment_pattern = re.compile(r"(?<!\\)%.*")
+
     def replace_input(match):
         filename = match.group(1)
         file_path = os.path.join(base_dir, filename)
@@ -22,7 +25,13 @@ def resolve_input_commands(latex_code, base_dir):
             content = input_file.read()
         return resolve_input_commands(content, base_dir=os.path.dirname(file_path))
 
-    return input_pattern.sub(replace_input, latex_code)
+    # Remove comments
+    code_no_comments = comment_pattern.sub("", latex_code)
+
+    # Resolve input commands
+    resolved_code = input_pattern.sub(replace_input, code_no_comments)
+
+    return resolved_code
 
 if __name__ == '__main__':
     output_dir = sys.argv[1]
@@ -53,7 +62,12 @@ if __name__ == '__main__':
             'categories': result.categories
         }
         # logging.info(f'------ META {meta_data}')
-        result.download_source(output_dir, filename = f'{count}.arxiv_source')
+        try:
+            result.download_source(output_dir, filename = f'{count}.arxiv_source')
+        except Exception as e:
+            logging.error(f'ERROR: {e}')
+            time.sleep(4)
+            continue
     
         try:
             path = os.path.join(output_dir, str(count))

@@ -5,3 +5,4 @@
 data/arxiv
 .DS_Store
 __pycache__/
+htcondor/docker_stderror

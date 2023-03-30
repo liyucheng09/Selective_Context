@@ -20,9 +20,10 @@ def parse_tex_ignore_figures(tex_code):
     for node in parsed:
         if node.isNodeType(LatexEnvironmentNode):
             if node.environmentname == 'document':
-                document_node = node
+                parsed = [node]
+                break
 
-    filtered_nodes = remove_figure_nodes([document_node])
+    filtered_nodes = remove_figure_nodes(parsed)
     return filtered_nodes
 
 def pruned_latex_to_text(latex_code):

@@ -1,5 +1,19 @@
-from pylatexenc.latexwalker import LatexWalker, LatexEnvironmentNode
+from pylatexenc.latexwalker import LatexWalker, LatexEnvironmentNode, LatexMacroNode
 from pylatexenc import latex2text
+
+l2t_context_db = latex2text.get_default_latex_context_db()
+
+class TextExtractor:
+
+    def __init__(self):
+        self.l2t_context_db = latex2text.get_default_latex_context_db()
+        self.l2t_context_db = self.l2t_context_db.filter_element(['href'])
+
+        self.l2t = latex2text.LatexNodes2Text(latex_context=self.l2t_context_db)
+    
+    def extract(self, latex_code):
+        result = parse_tex_ignore_figures(latex_code)
+        return self.l2t.nodelist_to_text(result)
 
 def remove_figure_nodes(node_list):
     filtered_node_list = []
@@ -8,8 +22,8 @@ def remove_figure_nodes(node_list):
         if node.isNodeType(LatexEnvironmentNode):
             if node.environmentname in [ 'figure', 'figure*', 'algorithm', 'table', 'table*', 'algorithmic']:
                 continue
-            elif hasattr(node, 'nodelist'):
-                node.nodelist = remove_figure_nodes(node.nodelist)
+        if hasattr(node, 'nodelist'):
+            node.nodelist = remove_figure_nodes(node.nodelist)
         filtered_node_list.append(node)
     return filtered_node_list
 

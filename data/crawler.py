@@ -21,7 +21,7 @@ def resolve_input_commands(latex_code, base_dir="."):
         file_path = os.path.join(base_dir, filename)
         if not file_path.endswith(".tex"):
             file_path += ".tex"
-        with open(file_path, "r") as input_file:
+        with open(file_path, "r", encoding='utf-8', errors='ignore') as input_file:
             content = input_file.read()
         return resolve_input_commands(content, base_dir=os.path.dirname(file_path))
 
@@ -39,7 +39,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename=os.path.join(output_dir, '2_arxiv_downloader.log'), level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     search = arxiv.Search(
-        query='submittedDate:[20230201181133 TO 20230315181133]',
+        query='submittedDate:[20230201181133 TO 20230313181133]',
         max_results = 8000,
         sort_by = arxiv.SortCriterion.SubmittedDate,
         sort_order=arxiv.SortOrder.Descending

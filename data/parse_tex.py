@@ -1,13 +1,33 @@
 from pylatexenc.latexwalker import LatexWalker, LatexEnvironmentNode, LatexMacroNode
 from pylatexenc import latex2text
+from pylatexenc.macrospec import LatexContextDb
 
-l2t_context_db = latex2text.get_default_latex_context_db()
+def filter_element(context, exclude_elements = []):
+    
+    new_context = LatexContextDb()
+
+    new_context.unknown_macro_spec = context.unknown_macro_spec
+    new_context.unknown_environment_spec = context.unknown_environment_spec
+    new_context.unknown_specials_spec = context.unknown_specials_spec
+
+    filter_element_func = lambda dict_to_filter: {k:v for k,v in dict_to_filter.items() if k not in exclude_elements}.values()
+    for cat in context.category_list:
+
+        # include this category
+        new_context.add_context_category(
+            cat,
+            macros=filter_element_func(context.d[cat]['macros']),
+            environments=filter_element_func(context.d[cat]['environments']),
+            specials=filter_element_func(context.d[cat]['specials']),
+        )
+
+    return new_context
 
 class TextExtractor:
 
     def __init__(self):
         self.l2t_context_db = latex2text.get_default_latex_context_db()
-        self.l2t_context_db = self.l2t_context_db.filter_element(['href'])
+        self.l2t_context_db = filter_element(self.l2t_context_db, ['href'])
 
         self.l2t = latex2text.LatexNodes2Text(latex_context=self.l2t_context_db)
     

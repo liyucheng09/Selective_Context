@@ -55,39 +55,39 @@ if __name__ == '__main__':
         # logging.info(f'------ META {meta_data}')
         result.download_source(output_dir, filename = f'{count}.arxiv_source')
     
-        # try:
-        path = os.path.join(output_dir, str(count))
-        source_file = os.path.join(output_dir, f'{count}.arxiv_source')
-        with tarfile.open(source_file) as tar:
-            tar.extractall(path)
+        try:
+            path = os.path.join(output_dir, str(count))
+            source_file = os.path.join(output_dir, f'{count}.arxiv_source')
+            with tarfile.open(source_file) as tar:
+                tar.extractall(path)
+                
+            logging.info(f"Processing source file: {source_file}")
+
+            extracted_files = os.listdir(path)
+            tex_files = [file for file in extracted_files if file.endswith('.tex')]
+            if len(tex_files)>1:
+                if 'main.tex' in tex_files: tex_files=['main.tex']
+                else:
+                    logging.info(f'Multiple tex files for {source_file}')
+                    shutil.rmtree(path)
+                    continue
+            tex_file = tex_files[0]
+            with open(os.path.join(path, tex_file), encoding='utf-8', errors='ignore') as f:
+                latex_code = f.read()
+                if '\\input' in latex_code:
+                    latex_code = resolve_input_commands(latex_code, path)
+                text = text_extractor.extract(latex_code)
             
-        logging.info(f"Processing source file: {source_file}")
+            meta_data['text'] = text
+            text_save_path = os.path.join(text_save_dir, f'{count}.json')
+            with open(text_save_path, 'w', encoding='utf-8', errors='ignore') as f:
+                json.dump(meta_data, f)
 
-        extracted_files = os.listdir(path)
-        tex_files = [file for file in extracted_files if file.endswith('.tex')]
-        if len(tex_files)>1:
-            if 'main.tex' in tex_files: tex_files=['main.tex']
-            else:
-                logging.info(f'Multiple tex files for {source_file}')
-                shutil.rmtree(path)
-                continue
-        tex_file = tex_files[0]
-        with open(os.path.join(path, tex_file), encoding='utf-8', errors='ignore') as f:
-            latex_code = f.read()
-            if '\\input' in latex_code:
-                latex_code = resolve_input_commands(latex_code, path)
-            text = text_extractor.extract(latex_code)
-        
-        meta_data['text'] = text
-        text_save_path = os.path.join(text_save_dir, f'{count}.json')
-        with open(text_save_path, 'w', encoding='utf-8', errors='ignore') as f:
-            json.dump(meta_data, f)
-
-        logging.info(f'saved to {text_save_path}')
-        shutil.rmtree(path)
-        os.remove(source_file)
-        count += 1
-        # except Exception as e:
-        #     logging.error(f'ERROR: {e}')
-        #     traceback.print_exc()
-        #     continue
+            logging.info(f'saved to {text_save_path}')
+            shutil.rmtree(path)
+            os.remove(source_file)
+            count += 1
+        except Exception as e:
+            logging.error(f'ERROR: {e}')
+            traceback.print_exc()
+            continue

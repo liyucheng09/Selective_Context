@@ -6,3 +6,9 @@ data/arxiv
 .DS_Store
 __pycache__/
 htcondor/docker_stderror
+data/news
+data/*.json
+data/*.txt
+*.pkl
+test.tsv
+data/500arxiv

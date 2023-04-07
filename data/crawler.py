@@ -39,7 +39,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename=os.path.join(output_dir, '2_arxiv_downloader.log'), level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
     search = arxiv.Search(
-        query='submittedDate:[20230201181133 TO 20230313181133]',
+        query='submittedDate:[20230201181133 TO 20230316181133]',
         max_results = 8000,
         sort_by = arxiv.SortCriterion.SubmittedDate,
         sort_order=arxiv.SortOrder.Descending

@@ -60,9 +60,9 @@ def parse_tex_ignore_figures(tex_code):
     filtered_nodes = remove_figure_nodes(parsed)
     return filtered_nodes
 
-def pruned_latex_to_text(latex_code):
+def pruned_latex_to_text(latex_code, math_mode = 'remove'):
     result = parse_tex_ignore_figures(latex_code)
-    return latex2text.LatexNodes2Text().nodelist_to_text(result)
+    return latex2text.LatexNodes2Text(math_mode = math_mode).nodelist_to_text(result)
 
 if __name__ == "__main__":
     tex_code = r"""

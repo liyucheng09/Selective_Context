@@ -17,7 +17,7 @@ def display_performance(context: ContextAndAnswer):
     print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {context.metrics}\n')
 
 def main():
-    arxiv_path, conversation_path, save_to_path, = sys.argv[1:]
+    arxiv_path, save_to_path, = sys.argv[1:]
     
     # task_types = ['summarisation', 'masked-targeting-qa', 'qa']
     # mask_types = ['self-info-sentence', 'Ramdom', 'no']
@@ -38,6 +38,7 @@ def main():
         'qa': QA,
     }
 
+    
     for mask_ratio in mask_ratios:
         for dataset_type in dataset_types:
             for task_type in task_types:

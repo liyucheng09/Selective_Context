@@ -144,10 +144,12 @@ class ArxivContextManager:
             )
 
         logging.info(f"Finish generating {len(resulting_contexts)} contexts.")
+        self._check_point('Ending checkpointing.')
         return self.resulting_contexts
     
-    def _check_point(self) -> bool:
+    def _check_point(self, message = '') -> bool:
         pickle_file = os.path.join(self.path, f"ArxivContextManager_{self.path}_{self.random_mask_ratio}.pkl")
+        logging.info(f"saved to {pickle_file}. {message}")
         with open(pickle_file, "wb") as f:
             pickle.dump(self, f)
     

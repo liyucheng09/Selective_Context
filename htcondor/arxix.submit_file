@@ -16,17 +16,17 @@ error  = Arxiv.c$(cluster).p$(process).error
 
 should_transfer_files = YES
 
-environment = mount=/vol/research/lyc
+environment = mount=/vol/research/lyc,/vol/research/lyc_d
 # environment = "XDG_CONFIG_HOME=$(cwd)"
 
 # -------------------------------------
 # Requirements for the Job (Requirements are explained in further detail in example09.submit_file)
 # NOTE: HasStornext is not valid on orca.
-requirements = (CUDACapability > 2.0)
+requirements = (CUDACapability > 2.0) 
 
 # --------------------------------------
 # Resources
-#request_GPUs     = 1
+request_GPUs     = 1
 # this needs to be specified for the AI@Surrey cluster if requesting a GPU
 #+GPUMem          = 10000
 request_CPUs     = 4

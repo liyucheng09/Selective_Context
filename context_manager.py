@@ -110,14 +110,14 @@ class ArxivContextManager:
             if len(sents) == 0:
                 continue
 
-            # try:
-            article.units = self._lexical_unit(sents)
-            # except Exception as e:
-            #     logging.error(f"Error in article {article_idx}: {e}")
-            #     articles = articles + self.articles[article_idx:]
-            #     self.articles = articles
-            #     self._check_point('Error _preparing_self_info {article_idx}: {e}')
-            #     exit(1)
+            try:
+                article.units = self._lexical_unit(sents)
+            except Exception as e:
+                logging.error(f"Error in article {article_idx}: {e}")
+                articles = articles + self.articles[article_idx:]
+                self.articles = articles
+                self._check_point('Error _preparing_self_info {article_idx}: {e}')
+                exit(1)
             
             articles.append(article)
 
@@ -285,6 +285,7 @@ class ArxivContextManager:
     def _check_point(self, message = '') -> bool:
         pickle_file = os.path.join(self.path, f"{self.__class__.__name__}_{'sent' if self.sent_level_self_info else 'paragraph'}.pkl")
         logging.info(f"saved to {pickle_file}. {message}")
+        print(f"saved to {pickle_file}. {message}")
         with open(pickle_file, "wb") as f:
             pickle.dump(self, f)
     
@@ -491,7 +492,7 @@ class ConversationContextManager(ArxivContextManager):
         f.close()
         return masked_context, masked_sents
 
-def get_self_information(text, num_retry = 3):
+def get_self_information(text, num_retry = 5):
     # text = text[:1000]
     openai_key = os.environ["OPENAI_API_KEY"]
 

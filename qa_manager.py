@@ -8,6 +8,7 @@ import logging
 import evaluate
 import os
 import openai
+import time
 
 @dataclass
 class ContextAndAnswer:
@@ -57,15 +58,22 @@ class TaskManager:
         elif self.model_type == "llama-7B":
             pass
     
-    def _gpt_3_5_turbo_generate(self, prompt):
+    def _gpt_3_5_turbo_generate(self, prompt, num_retry = 5):
         # generate answer by gpt-3.5-turbo
         openai_key = os.environ.get("OPENAI_KEY")
-        r = openai.ChatCompletion.create(
-            model = 'gpt-3.5-turbo',
-            messages = [
-                {"role": "user", "content": prompt},
-            ],
-        )
+        for _ in range(num_retry):
+            try:
+                r = openai.ChatCompletion.create(
+                    model = 'gpt-3.5-turbo',
+                    messages = [
+                        {"role": "user", "content": prompt},
+                    ],
+                )
+                break
+            except Exception as e:
+                print(e)
+                time.sleep(1)
+        
         return r.choices[0]['message']['content']
     
     def prompt_for_the_task(self):

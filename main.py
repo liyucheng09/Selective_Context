@@ -59,6 +59,8 @@ def main():
 
                 # second, we need to generate the answer for the given contexts
                 task_manager = task_managers[task_type](task_type, 'gpt-3.5-turbo')
+                task_ans = copy.deepcopy(ans)
+                task_ans.task_name = task_type
                 ans = task_manager.get_answer(copy.deepcopy(ans))
 
                 # third, we need to evaluate the performance of the task

@@ -9,6 +9,8 @@ import evaluate
 import os
 import openai
 import time
+import pickle
+import pandas as pd
 
 @dataclass
 class ContextAndAnswer:
@@ -44,9 +46,10 @@ class ContextAndAnswer:
             
 class TaskManager:
 
-    def __init__(self, task_name, model_type):
+    def __init__(self, task_name, model_type, save_path):
         self.task_name = task_name
         self.model_type = model_type
+        self.save_path = save_path
 
         self._prepare_model()
     
@@ -88,20 +91,34 @@ class TaskManager:
     
     def get_answer(self, contexts: List[ContextAndAnswer]):
         raise NotImplementedError
+    
+    def setup(self, ans: ContextAndAnswer):
+        self.ans = ans
+        self.dataset_type = ans.dataset_type
+        self.mask_ratio = ans.mask_ratio
+    
+    def save_as_pickle(self):
+        file_path = os.path.join(self.save_path, f'answer_{self.task_name}_{self.dataset_type}_{self.mask_ratio}.pkl')
+        # save the ContextAndAnswer object as pickle
+        with open(file_path, 'wb') as f:
+            pickle.dump(self.ans, f)
+        logging.info(f'Saved to {file_path}')
+        print(f'Saved to {file_path}')
 
 class Summarisation(TaskManager):
     """
         This task is summarisation on the given context.
     """
 
-    def __init__(self, task_name, model_type):
-        super().__init__(task_name, model_type)
+    def __init__(self, task_name, model_type, save_path):
+        super().__init__(task_name, model_type, save_path)
     
     def prompt_for_the_task(self, context: ArxivContext):
         prompt = f"Summarise the following content:\n\n----\n\n{context.context}"
         return prompt
 
-    def get_answer(self, ans: ContextAndAnswer):
+    def get_answer(self):
+        ans = self.ans
         answer_of_contexts = {}
         for context_type, contexts in ans.contexts_dict.items():
             for context in contexts:
@@ -111,15 +128,16 @@ class Summarisation(TaskManager):
                     answer_of_contexts[context_type] = []
                 answer_of_contexts[context_type].append(summary)
         ans.answer_of_contexts = answer_of_contexts
+        self.ans = ans
         logging.info(f"Summarisation task is done.")
         return ans
     
-    @staticmethod
-    def evaluate(contexts: ContextAndAnswer):
+    def evaluate(self):
         # evaluate the summarisation task
         # try to use BLEU, ROUGE, METEOR, and BERTScore
         # bleu, bertscore, meteor, rouge all implemented by huggingface.metrics
 
+        contexts = self.ans
         reference_context = contexts.reference_context
         reference_answer = contexts.answer_of_contexts[reference_context]
         performance = {}
@@ -136,6 +154,7 @@ class Summarisation(TaskManager):
                     score =  metric.compute(predictions=answer, references=reference_answer)
                 logging.info(f"Score for {metric} is {score}")
                 performance[context_type].update(score)
+        self.ans.metrics = performance
         return performance
         
 
@@ -163,24 +182,124 @@ class QA(TaskManager):
 
         Note that the questions generated are shared across all contexts.
     """
-    def __init__(self, task_name, model_type):
-        super().__init__(task_name, model_type)
-    
-    def prompt_for_the_task(self, context: ArxivContext, questions: List[str]):
-        # prepare the prompt for the QA task
-        pass
+    def __init__(self, task_name, model_type, save_path):
+        super().__init__(task_name, model_type, save_path)
 
-    def get_answer(self, contexts: List[ContextAndAnswer]):
-        for context in contexts:
-            answer_of_contexts = {}
-            if context.questions is None:
-                # generate questions
-                questions = []
-            else:
-                questions = context.questions
-                
-            for context_type, context in context.contexts_dict.items():
-                prompt = self.prompt_for_the_task(context)
-                answer = self._generate_answer(prompt)
-                answer_of_contexts[context_type] = answer
-            context.answer_of_contexts = answer_of_contexts
+        self.question_saved_path = os.path.join(self.save_path, task_name,)
+        if not os.path.exists(self.question_saved_path):
+            os.makedirs(self.question_saved_path)
+    
+    def generate_questions(self, ans: ContextAndAnswer):
+        # generate questions based on the origin context
+        
+        origin_contexts = ans.contexts_dict[ans.reference_context]
+        all_questions = []
+        reference_answers = []
+        for cont in origin_contexts:
+            prompt = self.prompt_for_the_task(cont, task = "question_generation")
+            questions = self._generate_answer(prompt)
+
+            # save the questions
+            question_save_file = os.path.join(self.question_saved_path, f"{cont.id}.tsv")
+            with open(question_save_file, "w") as f:
+                f.write(questions)
+
+            # load the questions
+            try:
+                questions = pd.read_csv(question_save_file, sep = "\t")
+                questions_ = questions['Question'].tolist()
+                answers = questions['Answer'].tolist()
+            except Exception as e:
+                print(e)
+                questions_ = None
+                answers = None
+
+            all_questions.append(questions_)
+            reference_answers.append(answers)
+        
+        ans.questions = all_questions
+        ans.answer_of_contexts = {ans.reference_context: reference_answers}
+        return ans
+
+    def prompt_for_the_task(self, context: ArxivContext, task : str, questions: List[str] = None):
+        assert task in ["question_generation", "answer_generation"], "task should be either question_generation or answer_generation"
+
+        # prepare the prompt for question generation
+        if task == "question_generation":
+            prompt = f"Please generate a tsv file containing a list of questions and answers based on the following given context. Remember, generate only the table and nothing else. The two column names should be Question and Answer.\n\n---\n{context.context}"
+        elif task == "answer_generation":
+            questions = "\n".join([f"{idx+1}. {qus}" for idx, qus in enumerate(questions)])
+            prompt = f"Please generate a tsv file to answer the given questions based on the following given paragraph. Remember, generate only two columns for the question number and answers and nothing else. The column names should be Num and Answer.\n\n---Paragraph\n{context.context}\n\n---Questions\n{questions}"
+
+        return prompt
+
+    def get_answer(self):
+        ans = self.ans
+        answer_of_contexts = ans.answer_of_contexts
+        for context_type, contexts in ans.contexts_dict.items():
+            if context_type == ans.reference_context:
+                continue
+            if context_type not in answer_of_contexts:
+                answer_of_contexts[context_type] = []
+            for index, context in enumerate(contexts):
+                if ans.questions[index] is None:
+                    answer_of_contexts[context_type].append(None)
+                    continue
+                prompt = self.prompt_for_the_task(context, task = "answer_generation", questions = ans.questions[index])
+                answers = self._generate_answer(prompt)
+
+                # turn the answers into list
+                answers = answers.split("\n")[1:]
+                try:
+                    assert len(answers) == len(ans.questions[index]), f"the number of answers {len(answers)} should be equal to the number of questions {len(ans.questions[index])}"
+                except AssertionError as e:
+                    print(e)
+                    answers = None
+                answer_of_contexts[context_type].append(answers)
+        ans.answer_of_contexts = answer_of_contexts
+        self.ans = ans
+        logging.info(f"Summarisation task is done.")
+        return ans
+    
+    def evaluate(self):
+        # evaluate the summarisation task
+        # try to use BLEU, ROUGE, METEOR, and BERTScore
+        # bleu, bertscore, meteor, rouge all implemented by huggingface.metrics
+
+        contexts = self.ans
+        reference_context = contexts.reference_context
+
+        reference_answer = contexts.answer_of_contexts[reference_context]
+
+        performance = {}
+        for context_type in contexts.answer_of_contexts:
+            if context_type == reference_context:
+                continue
+            performance[context_type] = {}
+
+            # the answers here is a list of list of answers, should be flatten into a 1-D list
+            # also remember to remove the None answers
+            answers = contexts.answer_of_contexts[context_type]
+            flatten_answer = []
+            flatten_reference_answer = []
+            for p_a, r_a in zip(answers, reference_answer):
+                if p_a is None or r_a is None:
+                    continue
+                flatten_answer.extend(p_a)
+                flatten_reference_answer.extend(r_a)
+
+            for metric in ['bleu', 'meteor', 'rouge']:
+                metric = evaluate.load(metric)
+                if metric == 'bertscore':
+                    score = metric.compute(predictions=flatten_answer, references=flatten_reference_answer, lang='en')
+                else:
+                    score = metric.compute(predictions=flatten_answer, references=flatten_reference_answer)
+                logging.info(f"Score for {metric} is {score}")
+                performance[context_type].update(score)
+        
+        self.ans.metrics = performance
+        return performance
+    
+    def setup(self, ans):
+        super().setup(ans)
+        self.ans = self.generate_questions(ans)

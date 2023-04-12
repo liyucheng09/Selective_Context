@@ -14,8 +14,9 @@ def save_as_pickle(obj, file_path):
 
 def display_performance(context: ContextAndAnswer):
     assert context.metrics is not None, 'Not evaluted yet!'
-    logging.info(f'Performance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMetrics: {context.metrics}\n')
-    print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {context.metrics}\n')
+    metric_result = '\n'.join([f'{k}: {v}' for k, v in context.metrics.items()])
+    logging.info(f'Performance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {metric_result}\n')
+    print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {metric_result}\n')
 
 def main():
     arxiv_path, save_to_path, = sys.argv[1:]
@@ -24,9 +25,11 @@ def main():
     # mask_types = ['self-info-sentence', 'Ramdom', 'no']
 
     mask_types = ['no', 'self-info-sent', ]
-    task_types = ['summarisation']
+    mask_levels = ['phrase']
+    task_types = ['qa']
     dataset_types = ['arxiv']
     mask_ratios = [0.2, 0.4, 0.6]
+    models = ['gpt-3.5-turbo']
 
     dataset_managers = {
         'arxiv': ArxivContextManager,
@@ -43,34 +46,46 @@ def main():
         'arxiv': arxiv_path
     }
 
+    managers = [ task_managers[task_type](task_type, model, save_to_path) for task_type in task_types for model in models]
+
     for dataset_type in dataset_types:
-        context_manager = dataset_managers[dataset_type](data_path[dataset_type])
+        data_path =  data_path[dataset_type]
+
+        # check if checkpoint exists
+        checkpoint_path = os.path.join(data_path, f"{ArxivContextManager.__name__}_sent.pkl")
+        if os.path.exists(checkpoint_path):
+            context_manager = ArxivContextManager.from_checkpoint(checkpoint_path, phrase_mask_token = '')
+        else:
+            context_manager = dataset_managers[dataset_type](data_path)
         for mask_ratio in mask_ratios:
             # first, we need to get all the contexts: origin contexts and masked contexts
             context_dict = {}
             for mask_type in mask_types:
-                context_manager.mask_ratio = mask_ratio
-                contexts = context_manager.generate_context(mask_type)
-                print(contexts)
-                context_dict[mask_type] = contexts
+                if mask_type == 'no':
+                    contexts = context_manager.generate_context('no')
+                    context_dict[mask_type] = contexts
+                    continue
+                for mask_level in mask_levels:
+                    context_manager.mask_ratio = mask_ratio
+                    contexts = context_manager.generate_context(mask_type, mask_level=mask_level)
+                    context_dict[f'{mask_type}_{mask_level}'] = contexts
             ans = ContextAndAnswer(reference_context = 'no', contexts_dict=context_dict, dataset_type=dataset_type, mask_ratio=mask_ratio)
             
-            for task_type in task_types:
-
-                # second, we need to generate the answer for the given contexts
-                task_manager = task_managers[task_type](task_type, 'gpt-3.5-turbo')
+            for manager in managers:
                 task_ans = copy.deepcopy(ans)
-                task_ans.task_name = task_type
-                ans = task_manager.get_answer(copy.deepcopy(ans))
+                task_ans.task_name = manager.task_name
+
+                # second, we need to generate the answer for the given contexts.
+                # we may also generate questions for some tasks, inside the setup() function
+                manager.setup(task_ans)
+                manager.get_answer()
 
                 # third, we need to evaluate the performance of the task
-                performance = task_manager.evaluate(ans)
-                ans.metrics = performance
+                manager.evaluate()
+                display_performance(manager.ans)
 
                 # save the answer and performance
-                save_path = os.path.join(save_to_path, f'answer_{task_type}_{dataset_type}_{mask_ratio}.pkl')
-                display_performance(ans)
-                save_as_pickle(ans, save_path)
+                manager.save_as_pickle()
     
     # for mask_ratio in mask_ratios:
     #     for dataset_type in dataset_types:

@@ -33,6 +33,9 @@ class ArxivArticle:
     context_type: str = None
     units: List[LexicalUnits] = None
 
+    def __post_init__(self):
+        self.id = self.entry_id.split("/")[-1]
+
     def __repr__(self):
         return f"ArxivArticle: {self.title}\n\n"
 
@@ -48,6 +51,9 @@ class ArxivContext:
     context: str
     context_masked: bool
     masked_sents: List[str] = None
+
+    def __post_init__(self):
+        self.id = self.entry_id.split("/")[-1]
 
     def __repr__(self):
         return f"ArxivContext:\n --{self.context}\n\n"
@@ -70,6 +76,8 @@ class ArxivContextManager:
         ppl_threshold = None,
         tokenizer = None,
         compute_self_info = True,
+        sent_mask_token = "<...some content omitted.>",
+        phrase_mask_token = "",
     ):
         self.path = path
         self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
@@ -84,8 +92,8 @@ class ArxivContextManager:
         self.sent_level_self_info = True
         self.mask_ratio = mask_ratio
 
-        self.mask_token = "<...some content omitted.>"
-        self.phrase_mask_token = "..."
+        self.mask_token = sent_mask_token
+        self.phrase_mask_token = phrase_mask_token
 
         # self.sent_tokenize_pattern = r"((?<!e\.g)(?<!i\.e)(?<!w\.r\.t)(?<=\.)\s)|(?<=\?\s)|(?<=!\s)"
         # self.sent_tokenize_pattern = r"(?<!e\.g)(?<!i\.e)(?<=\.\s)|(?<=\?\s)|(?<=!\s)"
@@ -365,9 +373,11 @@ class ArxivContextManager:
             return ''
     
     @classmethod
-    def from_checkpoint(cls, pickle_path):
+    def from_checkpoint(cls, pickle_path, **kwargs):
         with open(pickle_path, 'rb') as f:
             manager = pickle.load(f)
+        for k,v in kwargs.items():
+            setattr(manager, k, v)
         manager._prepare_self_info()
         return manager
 

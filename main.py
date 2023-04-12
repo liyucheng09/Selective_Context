@@ -19,22 +19,23 @@ def display_performance(context: ContextAndAnswer):
     print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {metric_result}\n')
 
 def main():
-    arxiv_path, save_to_path, num_articles, = sys.argv[1:]
+    arxiv_path, news_path, save_to_path, num_articles, = sys.argv[1:]
     num_articles = int(num_articles)
     
     # task_types = ['summarisation', 'masked-targeting-qa', 'qa']
     # mask_types = ['self-info-sentence', 'Ramdom', 'no']
 
     mask_types = ['no', 'self-info', ]
-    mask_levels = ['phrase']
+    mask_levels = ['phrase', 'sent']
     task_types = ['summarisation', 'qa']
-    dataset_types = ['arxiv']
+    dataset_types = ['news', 'arxiv']
     mask_ratios = [0.2, 0.4]
     models = ['gpt-3.5-turbo']
 
     dataset_managers = {
         'arxiv': ArxivContextManager,
         'conversations': ConversationContextManager,
+        'news': NewsContextManager,
     }
 
     task_managers = {
@@ -43,19 +44,20 @@ def main():
         'qa': QA,
     }
 
-    data_path = {
-        'arxiv': arxiv_path
+    data_paths = {
+        'arxiv': arxiv_path,
+        'news': news_path
     }
 
     managers = [ task_managers[task_type](task_type, model, save_to_path) for task_type in task_types for model in models]
 
     for dataset_type in dataset_types:
-        data_path =  data_path[dataset_type]
+        data_path =  data_paths[dataset_type]
 
         # check if checkpoint exists
-        checkpoint_path = os.path.join(data_path, f"{ArxivContextManager.__name__}_sent.pkl")
+        checkpoint_path = os.path.join(data_path, f"{dataset_managers[dataset_type].__name__}_sent.pkl")
         if os.path.exists(checkpoint_path):
-            context_manager = ArxivContextManager.from_checkpoint(checkpoint_path, phrase_mask_token = '')
+            context_manager = dataset_managers[dataset_type].from_checkpoint(checkpoint_path, phrase_mask_token = '')
         else:
             context_manager = dataset_managers[dataset_type](data_path)
         for mask_ratio in mask_ratios:

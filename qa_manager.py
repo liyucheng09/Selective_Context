@@ -135,7 +135,7 @@ class Summarisation(TaskManager):
 
     def get_answer(self):
         ans = self.ans
-        answer_of_contexts = ans.answer_of_contexts
+        answer_of_contexts = ans.answer_of_contexts if ans.answer_of_contexts is not None else {}
         for context_type, contexts in ans.contexts_dict.items():
             if context_type not in answer_of_contexts:
                 answer_of_contexts[context_type] = []
@@ -165,12 +165,12 @@ class Summarisation(TaskManager):
             performance[context_type] = {}
             answer = contexts.answer_of_contexts[context_type]
             reference_answer_ = reference_answer[:len(answer)]
-            for metric in ['bleu', 'meteor', 'rouge']:
-                metric = evaluate.load(metric)
+            for metric in ['bleu', 'meteor', 'rouge', 'bertscore']:
+                metric_ = evaluate.load(metric)
                 if metric == 'bertscore':
-                    score = metric.compute(predictions=answer, references=reference_answer_, lang='en')
+                    score = metric_.compute(predictions=answer, references=reference_answer_, lang='en')
                 else:
-                    score =  metric.compute(predictions=answer, references=reference_answer_)
+                    score =  metric_.compute(predictions=answer, references=reference_answer_)
                 logging.info(f"Score for {metric} is {score}")
                 performance[context_type].update(score)
         self.ans.metrics = performance
@@ -271,7 +271,7 @@ class QA(TaskManager):
                 if ans.questions[index] is None:
                     answer_of_contexts[context_type].append(None)
                     continue
-                answer_save_file = os.path.join(self.question_saved_path, f"{ans.dataset_type}_{cont.id}_{context_type}_{self.mask_ratio}.tsv")
+                answer_save_file = os.path.join(self.question_saved_path, f"{ans.dataset_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
 
                 if os.path.exists(answer_save_file):
                     pass
@@ -327,11 +327,11 @@ class QA(TaskManager):
                 flatten_reference_answer.extend(r_a)
 
             for metric in ['bleu', 'meteor', 'rouge', 'bertscore']:
-                metric = evaluate.load(metric)
+                metric_ = evaluate.load(metric)
                 if metric == 'bertscore':
-                    score = metric.compute(predictions=flatten_answer, references=flatten_reference_answer, lang='en')
+                    score = metric_.compute(predictions=flatten_answer, references=flatten_reference_answer, lang='en')
                 else:
-                    score = metric.compute(predictions=flatten_answer, references=flatten_reference_answer)
+                    score = metric_.compute(predictions=flatten_answer, references=flatten_reference_answer)
                 logging.info(f"Score for {metric} is {score}")
                 performance[context_type].update(score)
         

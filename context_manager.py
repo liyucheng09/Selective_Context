@@ -16,6 +16,7 @@ from tqdm import tqdm
 from transformers import GPT2Tokenizer
 import time
 import spacy
+from datasets import load_dataset
 
 
 @dataclass
@@ -78,10 +79,12 @@ class ArxivContextManager:
         compute_self_info = True,
         sent_mask_token = "<...some content omitted.>",
         phrase_mask_token = "",
+        num_articles = 300
     ):
         self.path = path
         self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
         self.nlp.add_pipe('merge_noun_chunks')
+        self.num_articles = num_articles
         self.load_articles(path)
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2") if tokenizer is None else tokenizer
 
@@ -178,17 +181,40 @@ class ArxivContextManager:
 
             for idx, (token, info) in enumerate(zip(tokens, self_info)):
                 current_position += len(token)
-                if current_position >= len(units[current_unit_idx]):
+                if current_position == len(units[current_unit_idx]):
                     unit_self_info[current_unit_idx].append(info)
                     current_position = current_position - len(units[current_unit_idx])
                     current_unit_idx += 1
+                elif current_position > len(units[current_unit_idx]):
+                    counter_ = 1
+                    current_position = current_position - len(units[current_unit_idx])
+                    current_unit_idx += 1
+                    while current_position >= len(units[current_unit_idx]):
+                        counter_ += 1
+                        current_position = current_position - len(units[current_unit_idx])
+                        current_unit_idx += 1
+                        if current_unit_idx >= len(units):
+                            break
+                    partial_info = info/counter_
+                    for _ in range(counter_):
+                        unit_self_info[(current_unit_idx-1) - _].append(partial_info)
                 else:
                     if token == " ":
                         continue
                     unit_self_info[current_unit_idx].append(info)
             
-            unit_self_info = [np.mean(info) for info in unit_self_info]
-            return unit_self_info
+            unit_self_info_ = [np.mean(info) for info in unit_self_info]
+            return unit_self_info_
+        
+        def _noun_phrases(sent):
+            noun_phrases = []
+            doc = self.nlp(sent)
+            for index, chunk in enumerate(doc):
+                if index == 0:
+                    noun_phrases.append(chunk.text)
+                else:
+                    noun_phrases.append(doc[index-1].whitespace_ + chunk.text)
+            return noun_phrases
 
         if self.sent_level_self_info:
             # in this case, the self_info is for each sentence
@@ -196,8 +222,8 @@ class ArxivContextManager:
 
             sent = ''.join(tokens)
             # noun_phrases = [chunk.text for chunk in self.nlp(sent).noun_chunks]
-            noun_phrases = [chunk.text+chunk.whitespace_ if chunk.whitespace_ else chunk.text for chunk in self.nlp(sent)]
-            noun_phrases[-1] = noun_phrases[-1] + ' '
+            noun_phrases = _noun_phrases(sent)
+            # noun_phrases[-1] = noun_phrases[-1] + ' '
             noun_phrases_info = _unit_info(tokens, self_info, noun_phrases)
 
             return noun_phrases, noun_phrases_info
@@ -216,17 +242,17 @@ class ArxivContextManager:
             all_noun_phrases = []
             all_noun_phrases_info = []
             for sent, sent_info in zip(sents, sent_self_info):
-                noun_phrases = [chunk.text+chunk.whitespace_ if chunk.whitespace_ else chunk.text for chunk in self.nlp(sent)]
-                noun_phrases[-1] = noun_phrases[-1] + ' '
+                noun_phrases = _noun_phrases(sent)
+                # noun_phrases[-1] = noun_phrases[-1] + ' '
                 noun_phrases_info = _unit_info(tokens, self_info, noun_phrases)
                 all_noun_phrases.extend(noun_phrases)
                 all_noun_phrases_info.extend(noun_phrases_info)
 
             return LexicalUnits('sent', text = sents, self_info = sent_self_info), LexicalUnits('phrase', text = all_noun_phrases, self_info = all_noun_phrases_info)
     
-    def load_articles(self, path: str) -> List[ArxivArticle]:
+    def load_articles(self, path: str, start_point : int = 0) -> List[ArxivArticle]:
         self.articles = []
-        for file_path in tqdm(glob(os.path.join(path, "*.json")), desc="Loading Arxiv articles"):
+        for file_path in tqdm(glob(os.path.join(path, "*.json")[:self.num_articles]), desc="Loading Arxiv articles"):
             with open(file_path, "r", encoding='utf-8', errors='ignore') as f:
                 article = json.load(f)
                 entry_id = article["entry_id"]
@@ -504,6 +530,35 @@ class ConversationContextManager(ArxivContextManager):
                     masked_context += sent
         f.close()
         return masked_context, masked_sents
+    
+class NewsContextManager(ArxivContextManager):
+
+    def __init__(
+        self,
+        *args,
+        **kwargs
+    ):
+        self.ds_name = 'liyucheng/bbc_new_2303'
+        super().__init__(*args, **kwargs)
+    
+    def load_articles(self, path):
+        ds = load_dataset(self.ds_name, split=f'train[:{self.num_articles}]')
+        self.articles = []
+        for article in ds:
+            title = article['title']
+            id_ = article['link']
+            content = article['content']
+
+            self.articles.append(
+                ArxivArticle(text=content, entry_id=id_, title=title, sections=[content])
+            )
+        
+        logging.info(f"Finish preprocessing News articles. Loaded {len(self.articles)} documents.")
+        print(f"Finish preprocessing News articles. Loaded {len(self.articles)} documents.")
+
+    def beautify_context(self, context):
+        context = re.sub(r"\s+", " ", context)
+        return context
 
 def get_self_information(text, num_retry = 5):
     # text = text[:1000]

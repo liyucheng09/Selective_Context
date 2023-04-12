@@ -43,6 +43,10 @@ class ContextAndAnswer:
                 if sub_len < 0:
                     sub_len = 0
                 self.reduced_ratio[context_type].append(sub_len / len(ref.context))
+    
+    def __repr__(self):
+        contexts = '\n'.join(self.contexts_dict.keys())
+        return f"ContextAndAnswer:\n{contexts}"
             
 class TaskManager:
 
@@ -160,12 +164,13 @@ class Summarisation(TaskManager):
                 continue
             performance[context_type] = {}
             answer = contexts.answer_of_contexts[context_type]
+            reference_answer_ = reference_answer[:len(answer)]
             for metric in ['bleu', 'meteor', 'rouge']:
                 metric = evaluate.load(metric)
                 if metric == 'bertscore':
-                    score = metric.compute(predictions=answer, references=reference_answer, lang='en')
+                    score = metric.compute(predictions=answer, references=reference_answer_, lang='en')
                 else:
-                    score =  metric.compute(predictions=answer, references=reference_answer)
+                    score =  metric.compute(predictions=answer, references=reference_answer_)
                 logging.info(f"Score for {metric} is {score}")
                 performance[context_type].update(score)
         self.ans.metrics = performance
@@ -321,7 +326,7 @@ class QA(TaskManager):
                 flatten_answer.extend(p_a)
                 flatten_reference_answer.extend(r_a)
 
-            for metric in ['bleu', 'meteor', 'rouge']:
+            for metric in ['bleu', 'meteor', 'rouge', 'bertscore']:
                 metric = evaluate.load(metric)
                 if metric == 'bertscore':
                     score = metric.compute(predictions=flatten_answer, references=flatten_reference_answer, lang='en')

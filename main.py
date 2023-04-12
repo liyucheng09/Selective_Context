@@ -19,12 +19,13 @@ def display_performance(context: ContextAndAnswer):
     print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {metric_result}\n')
 
 def main():
-    arxiv_path, save_to_path, = sys.argv[1:]
+    arxiv_path, save_to_path, num_articles, = sys.argv[1:]
+    num_articles = int(num_articles)
     
     # task_types = ['summarisation', 'masked-targeting-qa', 'qa']
     # mask_types = ['self-info-sentence', 'Ramdom', 'no']
 
-    mask_types = ['no', 'self-info-sent', ]
+    mask_types = ['no', 'self-info', ]
     mask_levels = ['phrase']
     task_types = ['summarisation', 'qa']
     dataset_types = ['arxiv']
@@ -62,13 +63,13 @@ def main():
             context_dict = {}
             for mask_type in mask_types:
                 if mask_type == 'no':
-                    contexts = context_manager.generate_context('no')
+                    contexts = context_manager.generate_context('no', num_articles=num_articles)
                     context_dict[mask_type] = contexts
                     continue
                 for mask_level in mask_levels:
                     context_manager.mask_ratio = mask_ratio
-                    contexts = context_manager.generate_context(mask_type, mask_level=mask_level)
-                    context_dict[f'{mask_type}_{mask_level}'] = contexts
+                    contexts = context_manager.generate_context(mask_type, mask_level=mask_level, num_articles=num_articles)
+                    context_dict[f'{mask_type}-{mask_level}'] = contexts
             ans = ContextAndAnswer(reference_context = 'no', contexts_dict=context_dict, dataset_type=dataset_type, mask_ratio=mask_ratio)
             
             for manager in managers:

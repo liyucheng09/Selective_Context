@@ -260,11 +260,14 @@ class ArxivContextManager:
             return False
         return True
 
-    def generate_context(self, mask_method: str, mask_level: str = 'sent') -> List[ArxivContext]:
-        assert mask_method in ["Random", "self-info-sent", "no"]
+    def generate_context(self, mask_method: str, mask_level: str = 'sent', num_articles : int = None) -> List[ArxivContext]:
+        assert mask_method in ["Random", "self-info", "no"]
         resulting_contexts = []
 
-        for article in tqdm(self.articles, desc="Generating contexts"):
+        if num_articles is None or num_articles > len(self.articles):
+            num_articles = len(self.articles)
+
+        for article in tqdm(self.articles[:num_articles], desc="Generating contexts"):
             if mask_level == 'sent':
                 lexical_units = article.units[0]
                 assert lexical_units.unit_type == 'sent'
@@ -277,7 +280,7 @@ class ArxivContextManager:
 
             if mask_method == "Random":
                 context, masked_sents = self.random_mask_context(lexical_units.text, mask_level)
-            elif mask_method == "self-info-sent":
+            elif mask_method == "self-info":
                 context, masked_sents = self.self_info_mask(lexical_units.text, lexical_units.self_info, mask_level)
             elif mask_method == "no":
                 context = article.sections[0]

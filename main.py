@@ -26,9 +26,9 @@ def main():
 
     mask_types = ['no', 'self-info-sent', ]
     mask_levels = ['phrase']
-    task_types = ['qa']
+    task_types = ['summarisation', 'qa']
     dataset_types = ['arxiv']
-    mask_ratios = [0.2, 0.4, 0.6]
+    mask_ratios = [0.2, 0.4]
     models = ['gpt-3.5-turbo']
 
     dataset_managers = {

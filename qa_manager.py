@@ -96,7 +96,19 @@ class TaskManager:
         self.ans = ans
         self.dataset_type = ans.dataset_type
         self.mask_ratio = ans.mask_ratio
-    
+
+        # see if checkpoint exists
+        file_path = os.path.join(self.save_path, f'answer_{self.task_name}_{self.dataset_type}_{self.mask_ratio}.pkl')
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                pickled_ans = pickle.load(f)
+            logging.info(f'Loaded from {file_path}')
+            print(f'Loaded from {file_path}')
+
+            # update saved answers and questions to the latest
+            self.ans.answer_of_contexts = pickled_ans.answer_of_contexts
+            self.ans.questions = pickled_ans.questions
+
     def save_as_pickle(self):
         file_path = os.path.join(self.save_path, f'answer_{self.task_name}_{self.dataset_type}_{self.mask_ratio}.pkl')
         # save the ContextAndAnswer object as pickle
@@ -119,13 +131,15 @@ class Summarisation(TaskManager):
 
     def get_answer(self):
         ans = self.ans
-        answer_of_contexts = {}
+        answer_of_contexts = ans.answer_of_contexts
         for context_type, contexts in ans.contexts_dict.items():
+            if context_type not in answer_of_contexts:
+                answer_of_contexts[context_type] = []
+            else:
+                continue
             for context in contexts:
                 prompt = self.prompt_for_the_task(context)
                 summary = self._generate_answer(prompt)
-                if context_type not in answer_of_contexts:
-                    answer_of_contexts[context_type] = []
                 answer_of_contexts[context_type].append(summary)
         ans.answer_of_contexts = answer_of_contexts
         self.ans = ans
@@ -190,19 +204,26 @@ class QA(TaskManager):
             os.makedirs(self.question_saved_path)
     
     def generate_questions(self, ans: ContextAndAnswer):
+        # see if the questions are already generated
+        if ans.questions is not None:
+            return ans
+
         # generate questions based on the origin context
-        
         origin_contexts = ans.contexts_dict[ans.reference_context]
         all_questions = []
         reference_answers = []
         for cont in origin_contexts:
-            prompt = self.prompt_for_the_task(cont, task = "question_generation")
-            questions = self._generate_answer(prompt)
+            question_save_file = os.path.join(self.question_saved_path, f"{ans.dataset_type}_{cont.id}.tsv")
+            if os.path.exists(question_save_file):
+                pass
+            else:
+                # generate questions
+                prompt = self.prompt_for_the_task(cont, task = "question_generation")
+                questions = self._generate_answer(prompt)
 
-            # save the questions
-            question_save_file = os.path.join(self.question_saved_path, f"{cont.id}.tsv")
-            with open(question_save_file, "w") as f:
-                f.write(questions)
+                # save the questions
+                with open(question_save_file, "w") as f:
+                    f.write(questions)
 
             # load the questions
             try:
@@ -237,19 +258,31 @@ class QA(TaskManager):
         ans = self.ans
         answer_of_contexts = ans.answer_of_contexts
         for context_type, contexts in ans.contexts_dict.items():
-            if context_type == ans.reference_context:
-                continue
             if context_type not in answer_of_contexts:
                 answer_of_contexts[context_type] = []
+            else:
+                continue
             for index, context in enumerate(contexts):
                 if ans.questions[index] is None:
                     answer_of_contexts[context_type].append(None)
                     continue
-                prompt = self.prompt_for_the_task(context, task = "answer_generation", questions = ans.questions[index])
-                answers = self._generate_answer(prompt)
+                answer_save_file = os.path.join(self.question_saved_path, f"{ans.dataset_type}_{cont.id}_{context_type}_{self.mask_ratio}.tsv")
 
-                # turn the answers into list
-                answers = answers.split("\n")[1:]
+                if os.path.exists(answer_save_file):
+                    pass
+                else:
+                    # generate questions
+                    prompt = self.prompt_for_the_task(context, task = "answer_generation", questions = ans.questions[index])
+                    answers = self._generate_answer(prompt)
+
+                    # save the questions
+                    with open(answer_save_file, "w") as f:
+                        f.write(answers)
+                
+                # load the answers
+                with open(answer_save_file, "r") as f:
+                    answers = pd.read_csv(f, sep = "\t")
+                answers = answers['Answer'].tolist()
                 try:
                     assert len(answers) == len(ans.questions[index]), f"the number of answers {len(answers)} should be equal to the number of questions {len(ans.questions[index])}"
                 except AssertionError as e:

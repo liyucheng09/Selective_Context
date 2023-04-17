@@ -25,11 +25,11 @@ def main():
     # task_types = ['summarisation', 'masked-targeting-qa', 'qa']
     # mask_types = ['self-info-sentence', 'Ramdom', 'no']
 
-    mask_types = ['no', 'self-info', ]
-    mask_levels = ['phrase', 'sent']
-    task_types = ['summarisation', 'qa']
+    mask_types = ['Random', 'no', 'self-info', ]
+    mask_levels = ['phrase',]
+    task_types = ['reconstruction', 'summarisation', 'qa', ]
     dataset_types = ['news', 'arxiv']
-    mask_ratios = [0.2, 0.4]
+    mask_ratios = [0.2, 0.35, 0.5, 0.65, 0.8]
     models = ['gpt-3.5-turbo']
 
     dataset_managers = {
@@ -42,6 +42,7 @@ def main():
         'summarisation': Summarisation,
         'masked-targeting-qa': MaskedTargetingQA,
         'qa': QA,
+        'reconstruction': OriginalContextReconsutrction
     }
 
     data_paths = {
@@ -49,6 +50,7 @@ def main():
         'news': news_path
     }
 
+    eavluator = Evaluator(metrics = ['bleu', 'meteor', 'rouge', ])
     managers = [ task_managers[task_type](task_type, model, save_to_path) for task_type in task_types for model in models]
 
     for dataset_type in dataset_types:
@@ -84,7 +86,7 @@ def main():
                 manager.get_answer()
 
                 # third, we need to evaluate the performance of the task
-                manager.evaluate()
+                manager.evaluate(eavluator)
                 display_performance(manager.ans)
 
                 # save the answer and performance

@@ -50,12 +50,13 @@ class ContextAndAnswer:
             
 class TaskManager:
 
-    def __init__(self, task_name, model_type, save_path):
+    def __init__(self, task_name, model_type, save_path, metrics = ['bleu', 'meteor', 'rouge', ]):
         self.task_name = task_name
         self.model_type = model_type
         self.save_path = save_path
 
         self._prepare_model()
+        # self._prepare_evaluation(metrics)
     
     def _prepare_model(self):
         # prepare model and generate function
@@ -65,9 +66,18 @@ class TaskManager:
         elif self.model_type == "llama-7B":
             pass
     
+    # def _prepare_evaluation(self, metrics: List[str]):
+    #     # prepare evaluation
+    #     # should support rouge, bleu, and other metrics?
+    #     self.metrics = {}
+    #     for metric in metrics:
+    #         metric_ = evaluate.load(metric)
+    #         self.metrics[metric] = metric_
+    #     print(f'Finished loading metrics: {self.metrics.keys()}')
+    
     def _gpt_3_5_turbo_generate(self, prompt, num_retry = 5):
         # generate answer by gpt-3.5-turbo
-        openai_key = os.environ.get("OPENAI_KEY")
+        openai_key = os.environ.get("OPENAI_API_KEY")
         for _ in range(num_retry):
             try:
                 r = openai.ChatCompletion.create(
@@ -120,6 +130,44 @@ class TaskManager:
             pickle.dump(self.ans, f)
         logging.info(f'Saved to {file_path}')
         print(f'Saved to {file_path}')
+    
+    # def evaluate(self, predictions, references):
+    #     # evaluate the answer
+    #     # should support rouge, bleu, and other metrics?
+    #     results = {}
+    #     for metric_name, metric in self.metrics.items():
+    #         if metric_name == 'bertscore':
+    #             score = metric.compute(predictions=predictions, references=references, lang='en')
+    #         else:
+    #             score = metric.compute(predictions=predictions, references=references)
+    #         results.update(score)
+    #     return results
+
+class Evaluator:
+
+    def __init__(self, metrics = ['bleu', 'meteor', 'rouge', ]):
+        self._prepare_evaluation(metrics)
+    
+    def _prepare_evaluation(self, metrics: List[str]):
+        # prepare evaluation
+        # should support rouge, bleu, and other metrics?
+        self.metrics = {}
+        for metric in metrics:
+            metric_ = evaluate.load(metric)
+            self.metrics[metric] = metric_
+        print(f'Finished loading metrics: {self.metrics.keys()}')
+    
+    def evaluate(self, predictions, references):
+        # evaluate the answer
+        # should support rouge, bleu, and other metrics?
+        results = {}
+        for metric_name, metric in self.metrics.items():
+            if metric_name == 'bertscore':
+                score = metric.compute(predictions=predictions, references=references, lang='en')
+            else:
+                score = metric.compute(predictions=predictions, references=references)
+            results.update(score)
+        return results
 
 class Summarisation(TaskManager):
     """
@@ -150,7 +198,7 @@ class Summarisation(TaskManager):
         logging.info(f"Summarisation task is done.")
         return ans
     
-    def evaluate(self):
+    def evaluate(self, evaluator: Evaluator):
         # evaluate the summarisation task
         # try to use BLEU, ROUGE, METEOR, and BERTScore
         # bleu, bertscore, meteor, rouge all implemented by huggingface.metrics
@@ -162,21 +210,13 @@ class Summarisation(TaskManager):
         for context_type in contexts.answer_of_contexts:
             if context_type == reference_context:
                 continue
-            performance[context_type] = {}
             answer = contexts.answer_of_contexts[context_type]
             reference_answer_ = reference_answer[:len(answer)]
-            for metric in ['bleu', 'meteor', 'rouge', 'bertscore']:
-                metric_ = evaluate.load(metric)
-                if metric == 'bertscore':
-                    score = metric_.compute(predictions=answer, references=reference_answer_, lang='en')
-                else:
-                    score =  metric_.compute(predictions=answer, references=reference_answer_)
-                logging.info(f"Score for {metric} is {score}")
-                performance[context_type].update(score)
+            performance[context_type] = evaluator.evaluate(predictions=answer, references=reference_answer_)
+            
         self.ans.metrics = performance
         return performance
         
-
 class MaskedTargetingQA(TaskManager):
     """
         This task is questions targeting on the masked sentences.
@@ -302,7 +342,7 @@ class QA(TaskManager):
         logging.info(f"Summarisation task is done.")
         return ans
     
-    def evaluate(self):
+    def evaluate(self, evaluator: Evaluator):
         # evaluate the summarisation task
         # try to use BLEU, ROUGE, METEOR, and BERTScore
         # bleu, bertscore, meteor, rouge all implemented by huggingface.metrics
@@ -328,15 +368,8 @@ class QA(TaskManager):
                     continue
                 flatten_answer.extend(p_a)
                 flatten_reference_answer.extend(r_a)
-
-            for metric in ['bleu', 'meteor', 'rouge', 'bertscore']:
-                metric_ = evaluate.load(metric)
-                if metric == 'bertscore':
-                    score = metric_.compute(predictions=flatten_answer, references=flatten_reference_answer, lang='en')
-                else:
-                    score = metric_.compute(predictions=flatten_answer, references=flatten_reference_answer)
-                logging.info(f"Score for {metric} is {score}")
-                performance[context_type].update(score)
+            
+            performance[context_type] = evaluator.evaluate(flatten_answer, flatten_reference_answer)
         
         self.ans.metrics = performance
         return performance
@@ -344,3 +377,52 @@ class QA(TaskManager):
     def setup(self, ans):
         super().setup(ans)
         self.ans = self.generate_questions(ans)
+
+class OriginalContextReconsutrction(TaskManager):
+
+    def __init__(self, task_name, model_type, save_path):
+        super().__init__(task_name, model_type, save_path)
+
+    def get_answer(self):
+        ans = self.ans
+        answer_of_contexts = ans.answer_of_contexts if ans.answer_of_contexts is not None else {}
+        for context_type, contexts in ans.contexts_dict.items():
+            if context_type == ans.reference_context:
+                answer_of_contexts[context_type] = [context.context for context in contexts]
+                continue
+            if context_type not in answer_of_contexts:
+                answer_of_contexts[context_type] = []
+            else:
+                continue
+            for context in contexts:
+                prompt = self.prompt_for_the_task(context)
+                summary = self._generate_answer(prompt)
+                answer_of_contexts[context_type].append(summary)
+        ans.answer_of_contexts = answer_of_contexts
+        self.ans = ans
+        logging.info(f"Reconstruction task is done.")
+        print(f"Reconstruction task is done.")
+        return ans
+
+    def prompt_for_the_task(self, context: ArxivContext):
+        # prepare the prompt for original context reconstruction
+        prompt = f"There are some phrases omitted in the following paragraphs. Please infer the missing parts based on contextual clues and reconstruct and show me the original content. Remember, generate only the reconstruted paragraphs and nothing else.\n---\n{context.context}"
+        return prompt
+    
+    def evaluate(self, evaluator: Evaluator):
+        # evaluate the reconstruction task
+        # try to use BLEU, ROUGE, METEOR, and BERTScore
+        # bleu, bertscore, meteor, rouge all implemented by huggingface.metrics
+
+        contexts = self.ans
+        reference_context = contexts.reference_context
+        reference_answer = contexts.answer_of_contexts[reference_context]
+        performance = {}
+        for context_type in contexts.answer_of_contexts:
+            if context_type == reference_context:
+                continue
+            answer = contexts.answer_of_contexts[context_type]
+            reference_answer_ = reference_answer[:len(answer)]
+            performance[context_type] = evaluator.evaluate(answer, reference_answer_)
+        self.ans.metrics = performance
+        return performance

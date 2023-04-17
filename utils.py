@@ -1,4 +1,5 @@
 from context_manager import *
+import numpy as np
 
 def checkout_prob(text, file_path = 'prob.tsv'):
     tokens, self_info = get_self_information(text)
@@ -47,3 +48,17 @@ def read_lexical_units(article: ArxivArticle, mask_level = 'phrase'):
             buffer.append(line)
 
     return '\n'.join(lines) + '\n\n\n' + '\n'.join(highlighted)
+
+def datasets_statistics(manager: ArxivContextManager, tokenizer):
+    def num_tokens(text):
+        return len(tokenizer(text)['input_ids'])
+
+    articles = manager.articles
+    num_sents = [len(article.units[0].text) for article in articles]
+    num_phrases = [len(article.units[1].text) for article in articles]
+    num_tokens = [len(article.units[2].text) for article in articles]
+
+    print('Number of articles: ', len(articles))
+    print('Average number of sentences: ', np.mean(num_sents))
+    print('Average number of phrases: ', np.mean(num_phrases))
+    print('Average number of tokens: ', np.mean(num_tokens))

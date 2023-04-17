@@ -232,11 +232,11 @@ class QA(TaskManager):
 
             # load the questions
             try:
-                questions = pd.read_csv(question_save_file, sep = "\t")
+                questions = pd.read_csv(question_save_file, sep = "\t", on_bad_lines='skip')
                 questions_ = questions['Question'].tolist()
                 answers = questions['Answer'].tolist()
             except Exception as e:
-                print(e)
+                print(f'File parse Error. {question_save_file}')
                 questions_ = None
                 answers = None
 
@@ -252,7 +252,7 @@ class QA(TaskManager):
 
         # prepare the prompt for question generation
         if task == "question_generation":
-            prompt = f"Please generate a tsv file containing a list of questions and answers based on the following given context. Remember, generate only the table and nothing else. The two column names should be Question and Answer.\n\n---\n{context.context}"
+            prompt = f"Please generate a tsv file containing a list of question and answer based on the following given context. Remember, generate only the tsv content and nothing else. The two column names should be Question and Answer.\n\n---\n{context.context}"
         elif task == "answer_generation":
             questions = "\n".join([f"{idx+1}. {qus}" for idx, qus in enumerate(questions)])
             prompt = f"Please generate a tsv file to answer the given questions based on the following given paragraph. Remember, generate only two columns for the question number and answers and nothing else. The column names should be Num and Answer.\n\n---Paragraph\n{context.context}\n\n---Questions\n{questions}"
@@ -285,14 +285,17 @@ class QA(TaskManager):
                         f.write(answers)
                 
                 # load the answers
-                with open(answer_save_file, "r") as f:
-                    answers = pd.read_csv(f, sep = "\t")
-                answers = answers['Answer'].tolist()
                 try:
+                    with open(answer_save_file, "r") as f:
+                        answers = pd.read_csv(f, sep = "\t", on_bad_lines='skip')
+                    answers = answers['Answer'].tolist()
                     assert len(answers) == len(ans.questions[index]), f"the number of answers {len(answers)} should be equal to the number of questions {len(ans.questions[index])}"
-                except AssertionError as e:
-                    print(e)
+
+                except Exception as e:
+                    print(f'Answer file parse Error. {answer_save_file}')
+                    print(f'Error message: {e}')
                     answers = None
+
                 answer_of_contexts[context_type].append(answers)
         ans.answer_of_contexts = answer_of_contexts
         self.ans = ans

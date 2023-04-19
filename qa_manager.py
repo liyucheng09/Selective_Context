@@ -11,6 +11,7 @@ import openai
 import time
 import pickle
 import pandas as pd
+import numpy as np
 
 @dataclass
 class ContextAndAnswer:
@@ -65,15 +66,6 @@ class TaskManager:
             self._generate_answer = self._gpt_3_5_turbo_generate
         elif self.model_type == "llama-7B":
             pass
-    
-    # def _prepare_evaluation(self, metrics: List[str]):
-    #     # prepare evaluation
-    #     # should support rouge, bleu, and other metrics?
-    #     self.metrics = {}
-    #     for metric in metrics:
-    #         metric_ = evaluate.load(metric)
-    #         self.metrics[metric] = metric_
-    #     print(f'Finished loading metrics: {self.metrics.keys()}')
     
     def _gpt_3_5_turbo_generate(self, prompt, num_retry = 5):
         # generate answer by gpt-3.5-turbo
@@ -130,18 +122,6 @@ class TaskManager:
             pickle.dump(self.ans, f)
         logging.info(f'Saved to {file_path}')
         print(f'Saved to {file_path}')
-    
-    # def evaluate(self, predictions, references):
-    #     # evaluate the answer
-    #     # should support rouge, bleu, and other metrics?
-    #     results = {}
-    #     for metric_name, metric in self.metrics.items():
-    #         if metric_name == 'bertscore':
-    #             score = metric.compute(predictions=predictions, references=references, lang='en')
-    #         else:
-    #             score = metric.compute(predictions=predictions, references=references)
-    #         results.update(score)
-    #     return results
 
 class Evaluator:
 
@@ -155,6 +135,7 @@ class Evaluator:
         for metric in metrics:
             metric_ = evaluate.load(metric)
             self.metrics[metric] = metric_
+        logging.info(f'Finished loading metrics: {self.metrics.keys()}')
         print(f'Finished loading metrics: {self.metrics.keys()}')
     
     def evaluate(self, predictions, references):
@@ -164,6 +145,7 @@ class Evaluator:
         for metric_name, metric in self.metrics.items():
             if metric_name == 'bertscore':
                 score = metric.compute(predictions=predictions, references=references, lang='en')
+                score = {f'bertscore_{k}': np.mean(v) for k, v in score.items() if k in ['f1', 'precision', 'recall']}
             else:
                 score = metric.compute(predictions=predictions, references=references)
             results.update(score)
@@ -176,6 +158,10 @@ class Summarisation(TaskManager):
 
     def __init__(self, task_name, model_type, save_path):
         super().__init__(task_name, model_type, save_path)
+
+        self.summary_saved_path = os.path.join(self.save_path, task_name,)
+        if not os.path.exists(self.summary_saved_path):
+            os.makedirs(self.summary_saved_path)
     
     def prompt_for_the_task(self, context: ArxivContext):
         prompt = f"Summarise the following content:\n\n----\n\n{context.context}"
@@ -190,8 +176,21 @@ class Summarisation(TaskManager):
             else:
                 continue
             for context in contexts:
-                prompt = self.prompt_for_the_task(context)
-                summary = self._generate_answer(prompt)
+                summary_save_file = os.path.join(self.summary_saved_path, f"{ans.dataset_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
+                if os.path.exists(summary_save_file):
+                    pass
+                else:
+                    prompt = self.prompt_for_the_task(context)
+                    summary = self._generate_answer(prompt)
+
+                    # save the summary
+                    with open(summary_save_file, 'w') as f:
+                        f.write(summary)
+                
+                # load the summary
+                with open(summary_save_file, 'r') as f:
+                    summary = f.read()
+
                 answer_of_contexts[context_type].append(summary)
         ans.answer_of_contexts = answer_of_contexts
         self.ans = ans
@@ -212,7 +211,14 @@ class Summarisation(TaskManager):
                 continue
             answer = contexts.answer_of_contexts[context_type]
             reference_answer_ = reference_answer[:len(answer)]
-            performance[context_type] = evaluator.evaluate(predictions=answer, references=reference_answer_)
+            answers_ = []
+            ref_ = []
+            for a, r in zip(answer, reference_answer_):
+                if a in [None, np.nan, ''] or r in [None, np.nan, '']:
+                    continue
+                answers_.append(a)
+                ref_.append(r)
+            performance[context_type] = evaluator.evaluate(predictions=answers_, references=ref_)
             
         self.ans.metrics = performance
         return performance
@@ -302,6 +308,7 @@ class QA(TaskManager):
     def get_answer(self):
         ans = self.ans
         answer_of_contexts = ans.answer_of_contexts
+        logging.info(f"Answer generation task is started.")
         for context_type, contexts in ans.contexts_dict.items():
             if context_type not in answer_of_contexts:
                 answer_of_contexts[context_type] = []
@@ -366,8 +373,12 @@ class QA(TaskManager):
             for p_a, r_a in zip(answers, reference_answer):
                 if p_a is None or r_a is None:
                     continue
-                flatten_answer.extend(p_a)
-                flatten_reference_answer.extend(r_a)
+                assert len(p_a) == len(r_a), f"the number of answers {len(p_a)} should be equal to the number of reference answers {len(r_a)}"
+                for p, r in zip(p_a, r_a):
+                    if p in [None, np.nan] or r in [None, np.nan]:
+                        continue
+                    flatten_answer.append(p)
+                    flatten_reference_answer.append(r)
             
             performance[context_type] = evaluator.evaluate(flatten_answer, flatten_reference_answer)
         
@@ -383,9 +394,14 @@ class OriginalContextReconsutrction(TaskManager):
     def __init__(self, task_name, model_type, save_path):
         super().__init__(task_name, model_type, save_path)
 
+        self.summary_saved_path = os.path.join(self.save_path, task_name,)
+        if not os.path.exists(self.summary_saved_path):
+            os.makedirs(self.summary_saved_path)
+
     def get_answer(self):
         ans = self.ans
         answer_of_contexts = ans.answer_of_contexts if ans.answer_of_contexts is not None else {}
+        logging.info(f"Reconstruction task is started.")
         for context_type, contexts in ans.contexts_dict.items():
             if context_type == ans.reference_context:
                 answer_of_contexts[context_type] = [context.context for context in contexts]
@@ -395,8 +411,21 @@ class OriginalContextReconsutrction(TaskManager):
             else:
                 continue
             for context in contexts:
-                prompt = self.prompt_for_the_task(context)
-                summary = self._generate_answer(prompt)
+                summary_save_file = os.path.join(self.summary_saved_path, f"{ans.dataset_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
+                if os.path.exists(summary_save_file):
+                    pass
+                else:
+                    prompt = self.prompt_for_the_task(context)
+                    summary = self._generate_answer(prompt)
+
+                    # save the summary
+                    with open(summary_save_file, 'w') as f:
+                        f.write(summary)
+                
+                # load the summary
+                with open(summary_save_file, 'r') as f:
+                    summary = f.read()
+
                 answer_of_contexts[context_type].append(summary)
         ans.answer_of_contexts = answer_of_contexts
         self.ans = ans

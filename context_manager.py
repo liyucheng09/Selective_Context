@@ -17,6 +17,8 @@ from transformers import GPT2Tokenizer
 import time
 import spacy
 from datasets import load_dataset
+from filelock import FileLock
+import traceback
 
 
 @dataclass
@@ -79,7 +81,7 @@ class ArxivContextManager:
         compute_self_info = True,
         sent_mask_token = "<...some content omitted.>",
         phrase_mask_token = "",
-        num_articles = 300
+        num_articles = 200
     ):
         self.path = path
         self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
@@ -116,7 +118,7 @@ class ArxivContextManager:
             if not self.varify_context_length(intro):
                 continue
             sents = re.split(self.sent_tokenize_pattern, intro)
-            sents = [sent for sent in sents if sent.strip()]
+            sents = [sent.strip() for sent in sents if sent.strip()]
 
             if len(sents) == 0:
                 continue
@@ -125,9 +127,10 @@ class ArxivContextManager:
                 article.units = self._lexical_unit(sents)
             except Exception as e:
                 logging.error(f"Error in article {article_idx}: {e}")
+                traceback.print_exc()
                 articles = articles + self.articles[article_idx:]
                 self.articles = articles
-                self._check_point('Error _preparing_self_info {article_idx}: {e}')
+                self._check_point(f'Error _preparing_self_info {article_idx}: {e}')
                 exit(1)
             
             articles.append(article)
@@ -252,7 +255,8 @@ class ArxivContextManager:
     
     def load_articles(self, path: str, start_point : int = 0) -> List[ArxivArticle]:
         self.articles = []
-        for file_path in tqdm(glob(os.path.join(path, "*.json")[:self.num_articles]), desc="Loading Arxiv articles"):
+        logging.info(f"Start preprocessing Arxiv articles from {path}")
+        for file_path in tqdm(glob(os.path.join(path, "*.json"))[:self.num_articles], desc="Loading Arxiv articles"):
             with open(file_path, "r", encoding='utf-8', errors='ignore') as f:
                 article = json.load(f)
                 entry_id = article["entry_id"]
@@ -323,8 +327,9 @@ class ArxivContextManager:
         pickle_file = os.path.join(self.path, f"{self.__class__.__name__}_{'sent' if self.sent_level_self_info else 'paragraph'}.pkl")
         logging.info(f"saved to {pickle_file}. {message}")
         print(f"saved to {pickle_file}. {message}")
-        with open(pickle_file, "wb") as f:
-            pickle.dump(self, f)
+        with FileLock(pickle_file + ".lock", timeout=100):
+            with open(pickle_file, "wb") as f:
+                pickle.dump(self, f)
     
     def self_info_mask(self, sents: List[str], self_info: List[float], mask_level):
         sents_after_mask = []
@@ -403,8 +408,9 @@ class ArxivContextManager:
     
     @classmethod
     def from_checkpoint(cls, pickle_path, **kwargs):
-        with open(pickle_path, 'rb') as f:
-            manager = pickle.load(f)
+        with FileLock(pickle_path + ".lock", timeout=100):
+            with open(pickle_path, 'rb') as f:
+                manager = pickle.load(f)
         for k,v in kwargs.items():
             setattr(manager, k, v)
         manager._prepare_self_info()

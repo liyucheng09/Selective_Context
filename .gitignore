@@ -13,3 +13,4 @@ data/*.txt
 test.tsv
 data/500arxiv
 data/results
+htcondor/

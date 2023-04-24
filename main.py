@@ -19,17 +19,18 @@ def display_performance(context: ContextAndAnswer):
     print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {metric_result}\n')
 
 def main():
-    arxiv_path, news_path, save_to_path, num_articles, dataset_type, mask_ratio = sys.argv[1:]
+    arxiv_path, news_path, conversation_path, save_to_path, num_articles, dataset_type, mask_ratio = sys.argv[1:]
     logging.basicConfig(level=logging.INFO, filename=os.path.join(save_to_path, f'log_{dataset_type}_{mask_ratio}.txt'), filemode='w', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    logging.info(f'arxiv_path: {arxiv_path}, news_path: {news_path}, save_to_path: {save_to_path}, num_articles: {num_articles}, dataset_type: {dataset_type}, mask_ratio: {mask_ratio}')
+    logging.info(f'arxiv_path: {arxiv_path}, news_path: {news_path}, conversation_path: {conversation_path}, save_to_path: {save_to_path}, num_articles: {num_articles}, dataset_type: {dataset_type}, mask_ratio: {mask_ratio}')
     num_articles = int(num_articles)
     
     # task_types = ['summarisation', 'masked-targeting-qa', 'qa']
     # mask_types = ['self-info-sentence', 'Ramdom', 'no']
 
-    mask_types = ['no', 'self-info', 'Random']
+    # mask_types = ['no', 'self-info', 'Random']
+    mask_types = ['no', 'self-info', 'Random', 'no2']
     mask_levels = ['phrase',]
-    task_types = ['qa',]
+    task_types = ['continue_conversation']
     # task_types = ['reconstruction', 'summarisation', 'qa', ]
     dataset_types = [dataset_type]
     # dataset_types = ['news', 'arxiv']
@@ -39,7 +40,7 @@ def main():
 
     dataset_managers = {
         'arxiv': ArxivContextManager,
-        'conversations': ConversationContextManager,
+        'conversation': ConversationContextManager,
         'news': NewsContextManager,
     }
 
@@ -47,12 +48,14 @@ def main():
         'summarisation': Summarisation,
         'masked-targeting-qa': MaskedTargetingQA,
         'qa': QA,
-        'reconstruction': OriginalContextReconsutrction
+        'reconstruction': OriginalContextReconsutrction,
+        'continue_conversation': ContinueConversation,
     }
 
     data_paths = {
         'arxiv': arxiv_path,
-        'news': news_path
+        'news': news_path,
+        'conversation': conversation_path
     }
 
     eavluator = Evaluator(metrics = ['bleu', 'meteor', 'rouge', 'bertscore'])
@@ -66,7 +69,7 @@ def main():
         if os.path.exists(checkpoint_path):
             context_manager = dataset_managers[dataset_type].from_checkpoint(checkpoint_path, phrase_mask_token = '')
         else:
-            context_manager = dataset_managers[dataset_type](data_path)
+            context_manager = dataset_managers[dataset_type](data_path, num_articles=100)
         for mask_ratio in mask_ratios:
             # first, we need to get all the contexts: origin contexts and masked contexts
             context_dict = {}

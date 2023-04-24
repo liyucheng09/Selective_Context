@@ -5,6 +5,7 @@ from qa_manager import *
 import os
 import pandas as pd
 import math
+import sys
 
 def checkout_prob(text, file_path = 'prob.tsv'):
     tokens, self_info = get_self_information(text)
@@ -112,21 +113,40 @@ def merge_answer(tasks: List[str], data_sources: List[str], mask_ratios: List[st
 
         answer = ans.answer_of_contexts[context_type]
         reference = ans.answer_of_contexts[ans.reference_context]
+        slice_ = min(len(reference), len(answer))
 
-        # answers_ = []
-        # ref_ = []
-        # for a, r in zip(answer, reference):
-        #     if a in [None, np.nan, ''] or r in [None, np.nan, '']:
-        #         continue
-        #     answers_.append(a)
-        #     ref_.append(r)
-
-        answer_of_contexts[context].extend(answer)
-        answer_of_contexts[ans.reference_context].extend(reference[:len(answer)])
+        answer_of_contexts[context_type].extend(answer[:slice_])
+        answer_of_contexts[ans.reference_context].extend(reference[:slice_])
 
     return answer_of_contexts
 
-def prepare_results():
+def prepare_results_1(context_type):
+
+    save_path = '/vol/research/lyc/llm_memorize/results'
+    evaluator = Evaluator(metrics=['bleu', 'meteor', 'rouge', 'bertscore']) #  'bertscore'
+
+    # all_mask_ratios = [0.8]
+    # all_mask_ratios = [0.2, 0.35, 0.5, 0.65, 0.8]
+    all_mask_ratios = [0.35, ]
+    
+    # results 1
+    answers = {}
+    # for mask_ratio in all_mask_ratios:
+    ans = merge_answer(tasks = ['qa', 'reconstruction', 'summarisation'], data_sources = ['news', 'arxiv'], mask_ratios = all_mask_ratios, context_type = context_type)
+    sip_ans = ans[context_type]
+    references = ans['no']
+    answers['all'] = evaluator.evaluate(sip_ans, references)
+
+        # random_ans = merge_answer(tasks = ['qa', 'reconstruction', 'summarisation'], data_sources = ['news', 'arxiv'], mask_ratios = [mask_ratio], context_type = 'Random-phrase')
+        # random_ans_ = random_ans['Random-phrase']
+        # references = random_ans['no']
+        # random_phrase[mask_ratio] = evaluator.evaluate(random_ans_, references)
+    
+    sip_df = pd.DataFrame.from_dict(answers, orient='index', columns=['bleu', 'meteor', 'rouge1', 'bertscore_precision', 'rouge2', 'rougeL', 'rougeLsum', 'bertscore_recall', 'bertscore_f1'])
+
+    sip_df.to_csv(os.path.join(save_path, f'{context_type}_0.5_all.csv'))
+
+def prepare_results_2():
 
     save_path = '/vol/research/lyc/llm_memorize/results'
     evaluator = Evaluator(metrics=['bleu', 'meteor', 'rouge', 'bertscore']) #  'bertscore'
@@ -134,30 +154,107 @@ def prepare_results():
     # all_mask_ratios = [0.8]
     all_mask_ratios = [0.2, 0.35, 0.5, 0.65, 0.8]
     
+    # results 2
+    self_info_phrase = {
+        'qa': {},
+        'summarisation': {},
+        'reconstruction': {}
+    }
+    for task in ['qa', 'reconstruction', 'summarisation']:
+        for mask_ratio in all_mask_ratios:
+            ans = merge_answer(tasks = [task], data_sources = ['news', 'arxiv'], mask_ratios = [mask_ratio], context_type = 'self-info-phrase')
+            sip_ans = ans['self-info-phrase']
+            references = ans['no']
+            self_info_phrase[task][mask_ratio] = evaluator.evaluate(sip_ans, references)
+
+        sip_df = pd.DataFrame.from_dict(self_info_phrase[task], orient='index', columns=['bleu', 'meteor', 'rouge1', 'bertscore_precision', 'rouge2', 'rougeL', 'rougeLsum', 'bertscore_recall', 'bertscore_f1'])
+        sip_df.to_csv(os.path.join(save_path, f'{task}_all.csv'))
+
+def prepare_results_3(context_type):
+
+    save_path = '/vol/research/lyc/llm_memorize/results'
+    evaluator = Evaluator(metrics=['bleu', 'meteor', 'rouge', 'bertscore']) #  'bertscore'
+
+    # all_mask_ratios = [0.8]
+    # all_mask_ratios = [0.2, 0.35, 0.5, 0.65, 0.8]
+    all_mask_ratios = [0.35,]
+    all_tasks = ['qa', 'reconstruction', 'summarisation'] if context_type != 'no2-phrase' else ['qa', 'summarisation']
+    
     # results 1
-    self_info_phrase = {}
-    random_phrase = {}
-    for mask_ratio in all_mask_ratios:
-        ans = merge_answer(tasks = ['qa', 'reconstruction', 'summarisation'], data_sources = ['news', 'arxiv'], mask_ratios = [mask_ratio], context_type = 'self-info-phrase')
-        sip_ans = ans['self-info-phrase']
+    answers = {}
+    # for mask_ratio in all_mask_ratios:
+    for task in all_tasks:
+        ans = merge_answer(tasks = [task], data_sources = ['news', 'arxiv'], mask_ratios = all_mask_ratios, context_type = context_type)
+        sip_ans = ans[context_type]
         references = ans['no']
-        self_info_phrase[mask_ratio] = evaluator.evaluate(sip_ans, references)
+        answers[task] = evaluator.evaluate(sip_ans, references)
 
         # random_ans = merge_answer(tasks = ['qa', 'reconstruction', 'summarisation'], data_sources = ['news', 'arxiv'], mask_ratios = [mask_ratio], context_type = 'Random-phrase')
         # random_ans_ = random_ans['Random-phrase']
         # references = random_ans['no']
         # random_phrase[mask_ratio] = evaluator.evaluate(random_ans_, references)
     
-    sip_df = pd.DataFrame.from_dict(self_info_phrase, orient='index', columns=['bleu', 'meteor', 'rouge1', 'bertscore_precision', 'rouge2', 'rougeL', 'rougeLsum', 'bertscore_recall', 'bertscore_f1'])
-    random_df = pd.DataFrame.from_dict(random_phrase, orient='index', columns=['bleu', 'meteor', 'rouge1', 'bertscore_precision', 'rouge2', 'rougeL', 'rougeLsum', 'bertscore_recall', 'bertscore_f1'])
-
-    sip_df.to_csv(os.path.join(save_path, 'self_info_phrase_all.csv'))
-    random_df.to_csv(os.path.join(save_path, 'random_phrase_all.csv'))
+    sip_df = pd.DataFrame.from_dict(answers, orient='index', columns=['bleu', 'meteor', 'rouge1', 'rouge2', 'rougeL', 'rougeLsum', 'bertscore_precision', 'bertscore_recall', 'bertscore_f1'])
+    sip_df.to_csv(os.path.join(save_path, f'{context_type}_task_wise.csv'))
 
 def visualisation(dfs: Dict[str, pd.DataFrame]):
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(1, 1, figsize=(10, 5), dpi=120)
+    random_df = pd.read_csv('results/random_phrase_all.csv', index_col=0)
+    sip_df = pd.read_csv('results/self_info_phrase_all.csv', index_col=0)
+
+    fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 4), dpi=120)
+    sip_df.plot(y='bleu', ax=axes[0], marker='^', label = 'SC')
+    random_df.plot(y='bleu', ax=axes[0], marker='+', label = 'Random')
+    axes[0].set_title('BLEU')
+    axes[0].set_xticks([0.2, 0.35, 0.5, 0.65, 0.8])
+    # axes[0].set_xlabel('Filtered Ratio')
+
+    sip_df.plot(y='rouge1', ax=axes[1], marker='^', label = 'SC')
+    random_df.plot(y='rouge1', ax=axes[1], marker='+', label = 'Random')
+    axes[1].set_title('ROUGE1')
+    axes[1].set_xticks([0.2, 0.35, 0.5, 0.65, 0.8])
+    # axes[1].set_ylim(0.2, 0.7)
+    # axes[1].set_xlabel('Filtered Ratio')
+
+    sip_df.plot(y='bertscore_f1', ax=axes[2], marker='^', label = 'SC')
+    random_df.plot(y='bertscore_f1', ax=axes[2], marker='+', label = 'Random')
+    axes[2].set_title('BERTScore')
+    axes[2].set_xticks([0.2, 0.35, 0.5, 0.65, 0.8])
+    # axes[-1].set_xlabel('Filtered Ratio')
+    # axes[2].set_ylim(0.5, 1)
+    fig.text(0.55, -0.03, 'Filter ratio', ha='center', fontsize=13)
+    plt.tight_layout()
+
+def visualisation_2():
+    fig, axes = plt.subplots(nrows=1, ncols=3, figsize=(15, 4), dpi=120)
+    no_df.plot(y='bleu', ax=axes[0], marker='2', label = 'Original')
+    sip_df.plot(y='bleu', ax=axes[0], marker='^', label = 'Selective Context', color = 'salmon')
+    random_df.plot(y='bleu', ax=axes[0], marker='+', label = 'Random', color = 'grey')
+    axes[0].set_title('BLEU')
+    axes[0].set_xticks([0.2, 0.35, 0.5, 0.65, 0.8])
+    axes[0].set_ylim(0.02, 0.47)
+
+    no_df.plot(y='rouge1', ax=axes[1], marker='2', label = 'Original')
+    sip_df.plot(y='rouge1', ax=axes[1], marker='^', label = 'Selective Context', color = 'salmon')
+    random_df.plot(y='rouge1', ax=axes[1], marker='+', label = 'Random', color = 'grey')
+    axes[1].set_title('ROUGE1')
+    axes[1].set_xticks([0.2, 0.35, 0.5, 0.65, 0.8])
+    axes[1].set_ylim(0.3, 0.72)
+    # axes[1].set_ylim(0.2, 0.7)
+    # axes[1].set_xlabel('Filtered Ratio')
+
+    no_df.plot(y='bertscore_f1', ax=axes[2], marker='2', label = 'Original')
+    sip_df.plot(y='bertscore_f1', ax=axes[2], marker='^', label = 'Selective Context', color = 'salmon')
+    random_df.plot(y='bertscore_f1', ax=axes[2], marker='+', label = 'Random', color = 'grey')
+    axes[2].set_title('BERTScore')
+    axes[2].set_xticks([0.2, 0.35, 0.5, 0.65, 0.8])
+    axes[2].set_ylim(0.87, 0.945)
+    # axes[-1].set_xlabel('Filtered Ratio')
+    # axes[2].set_ylim(0.5, 1)
+    fig.text(0.52, -0.03, 'Context reduction ratio', ha='center', fontsize=14)
+    plt.tight_layout()
+
 
 def ramdom_baseline():
     from glob import glob
@@ -185,6 +282,9 @@ def ramdom_baseline():
         print(f"Done {base}")
 
 if __name__ == '__main__':
+    context_type, = sys.argv[1:]
     
+    # prepare_results_1(context_type)
     # ramdom_baseline()
-    prepare_results()
+    prepare_results_3(context_type) # 'no2-phrase', 'self-info-phrase', 'Random-phrase'
+    # prepare_results_2()

@@ -214,7 +214,7 @@ class Summarisation(TaskManager):
             answers_ = []
             ref_ = []
             for a, r in zip(answer, reference_answer_):
-                if a in [None, np.nan, ''] or r in [None, np.nan, '']:
+                if isinstance(a, float) or isinstance(r, float):
                     continue
                 answers_.append(a)
                 ref_.append(r)
@@ -375,7 +375,7 @@ class QA(TaskManager):
                     continue
                 assert len(p_a) == len(r_a), f"the number of answers {len(p_a)} should be equal to the number of reference answers {len(r_a)}"
                 for p, r in zip(p_a, r_a):
-                    if p in [None, np.nan] or r in [None, np.nan]:
+                    if isinstance(p, float) or isinstance(r, float):
                         continue
                     flatten_answer.append(p)
                     flatten_reference_answer.append(r)
@@ -452,6 +452,13 @@ class OriginalContextReconsutrction(TaskManager):
                 continue
             answer = contexts.answer_of_contexts[context_type]
             reference_answer_ = reference_answer[:len(answer)]
-            performance[context_type] = evaluator.evaluate(answer, reference_answer_)
+            slice_ = min(len(reference_answer_), len(answer))
+            performance[context_type] = evaluator.evaluate(answer[:slice_], reference_answer_[:slice_])
         self.ans.metrics = performance
         return performance
+
+class ContinueConversation(OriginalContextReconsutrction):
+
+    def prompt_for_the_task(self, context: ArxivContext,):
+        prompt = f"{context.context}"
+        return prompt

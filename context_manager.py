@@ -27,6 +27,21 @@ class LexicalUnits:
     text: List[str]
     self_info: List[float] = None
 
+    def __add__(self, other):
+        assert self.unit_type == other.unit_type, 'Cannot add two different unit types'
+        return LexicalUnits(self.unit_type, self.text + other.text, self.self_info + other.self_info)
+    
+    def __radd__(self, other):
+        if other == 0:
+            return self
+        return NotImplementedError()
+    
+    def add_to_head(self, token, self_info):
+        return LexicalUnits(self.unit_type, [token] + self.text, [self_info] + self.self_info)
+    
+    def add_to_tail(self, token, self_info):
+        return LexicalUnits(self.unit_type, self.text + [token], self.self_info + [self_info])
+
 @dataclass
 class ArxivArticle:
     text: str
@@ -41,6 +56,15 @@ class ArxivArticle:
 
     def __repr__(self):
         return f"ArxivArticle: {self.title}\n\n"
+
+@dataclass
+class ConversationArticle(ArxivArticle):
+    num_rounds: int = 0
+    prompt: str = None
+    context: List[Tuple[str, str]] = None
+
+    def __repr__(self):
+        return f"ConversationArticle: {self.entry_id}\n\n"
 
 @dataclass
 class Conversation:
@@ -87,7 +111,6 @@ class ArxivContextManager:
         self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
         self.nlp.add_pipe('merge_noun_chunks')
         self.num_articles = num_articles
-        self.load_articles(path)
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2") if tokenizer is None else tokenizer
 
         self.keep_leading_word = keep_leading_word
@@ -103,6 +126,7 @@ class ArxivContextManager:
         # self.sent_tokenize_pattern = r"((?<!e\.g)(?<!i\.e)(?<!w\.r\.t)(?<=\.)\s)|(?<=\?\s)|(?<=!\s)"
         # self.sent_tokenize_pattern = r"(?<!e\.g)(?<!i\.e)(?<=\.\s)|(?<=\?\s)|(?<=!\s)"
         self.sent_tokenize_pattern = r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s"
+        self.load_articles(path)
         self._prepare_self_info()
     
     def _prepare_self_info(self):
@@ -291,7 +315,7 @@ class ArxivContextManager:
         return True
 
     def generate_context(self, mask_method: str, mask_level: str = 'sent', num_articles : int = None) -> List[ArxivContext]:
-        assert mask_method in ["Random", "self-info", "no"]
+        assert mask_method in ["Random", "self-info", "no", "no2"]
         resulting_contexts = []
 
         if num_articles is None or num_articles > len(self.articles):
@@ -312,7 +336,21 @@ class ArxivContextManager:
                 context, masked_sents = self.random_mask_context(lexical_units.text, mask_level)
             elif mask_method == "self-info":
                 context, masked_sents = self.self_info_mask(lexical_units.text, lexical_units.self_info, mask_level)
-            elif mask_method == "no":
+            elif ( self.__class__.__name__ == 'ConversationContextManager' and \
+                mask_method == "no" ):
+
+                # in this case, we want to use the last sentence as the reference answer
+                context = article.context[-1][1]
+                masked_sents = None
+            
+            elif ( self.__class__.__name__ == 'ConversationContextManager' and \
+                mask_method == "no2" ):
+
+                # in this case, we use the entire context as prompt
+                context = article.prompt
+                masked_sents = None
+            
+            elif mask_method == "no" or mask_method == "no2":
                 context = article.sections[0]
                 masked_sents = None
 
@@ -417,29 +455,34 @@ class ArxivContextManager:
         return manager
 
 class ConversationContextManager(ArxivContextManager):
-
-    def __init__(
-        self,
-        path : str,
-        mask_ratio = 0.2, 
-        keep_leading_word = True,
-        num_lead_words = 3,
-        ppl_threshold = None,
-        tokenizer = None,
-    ):
-        super().__init__(path, mask_ratio, keep_leading_word, num_lead_words, ppl_threshold, tokenizer)
     
     def load_articles(self, path):
-        self.conversations = []
-        count = 0
+        self.articles = []
         with open(os.path.join(path, 'conversation_2k.json'), 'r', encoding='utf-8') as f:
             for line in f.readlines():
-                count += 1
-                if count > 10:
+                if len(self.articles) > self.num_articles:
                     break
                 conversation = json.loads(line)
                 conversation = self._parse_conversation(conversation)
-                self.conversations.append(conversation)
+                article = self._build_article(conversation)
+                if article is not None and article.num_rounds >=4:
+                    self.articles.append(article)
+    
+    def _build_article(self, conversation: Conversation):
+        lines = []
+        for utterence in conversation.context:
+            line = f"{utterence[0]}: {utterence[1]}"
+            punt = line[-1]
+            if punt not in ['.', '!', '?']:
+                line += '.'
+            lines.append(line)
+        content = '\n'.join(lines)
+        if not self.varify_context_length(content):
+            return None
+        prompt = '\n'.join(lines[:-1])
+        last_response = conversation.context[-1][1]
+        article = ConversationArticle(text=content, entry_id=conversation.id, title='', sections=[content, last_response], num_rounds=len(conversation.context), context = conversation.context)
+        return article
     
     def _parse_conversation(self, conversation):
         id = conversation['id']
@@ -458,84 +501,129 @@ class ConversationContextManager(ArxivContextManager):
             convs.append((role, value))
         return Conversation(id, convs)
     
-    def generate_context(self, mask_method):
-        # self.conversations = self.conversations[:2]
-        resulting_contexts = []
-        for conversation in self.conversations:
-
-            if mask_method == 'self-info-sent':
-                masked_context, masked_sents = self.self_info_sent_mask(conversation)
-            elif mask_method == 'Random':
-                masked_context, masked_sents = self.random_mask_context(conversation.context)
-
-            if not self.varify_context_length(masked_context):
+    def _prepare_self_info(self):
+        logging.info("Preparing self information...")
+        articles = []
+        for article_idx, article in tqdm(enumerate(self.articles), desc="Preparing self information"):
+            if article.units is not None:
+                # means the LexicalUnits has been calculated
+                articles.append(article)
                 continue
 
-            resulting_contexts.append(
-                ArxivContext(text='', entry_id=conversation.id, context=masked_context, context_masked=True, masked_sents=masked_sents)
-            )
+            sent_units = []
+            phrase_units = []
+            token_units = []
+            # here, we do not use the last utterance as part of the prompt. because it's the response
+            for role, utterance in article.context[:-1]:
+                sents = re.split(self.sent_tokenize_pattern, utterance)
+                sents = [sent.strip() for sent in sents if sent.strip()]
 
-        return resulting_contexts
+                if len(sents) == 0:
+                    continue
 
-    def random_mask_context(self, context):
-        masked_context = ''
-        masked_sents = []
+                try:
+                    units = self._lexical_unit(sents)
+                except Exception as e:
+                    logging.error(f"Error in article {article_idx}: {e}")
+                    traceback.print_exc()
+                    articles = articles + self.articles[article_idx:]
+                    self.articles = articles
+                    self._check_point(f'Error _preparing_self_info {article_idx}: {e}')
+                    exit(1)
+                
+                sent_units.append(units[0].add_to_head(f' {role}: ', 100))
+                phrase_units.append(units[1].add_to_head(f' {role}: ', 100))
+                token_units.append(units[2].add_to_head(f' {role}: ', 100))
+            
+            article.units = [
+                sum(sent_units),
+                sum(phrase_units),
+                sum(token_units),
+            ]
+            
+            articles.append(article)
 
-        for sent in conversation.context:
-            role = sent[0]
-            value = sent[1]
-            sents = re.split(self.sent_tokenize_pattern, value)
-            masked_context += role + ": "
-            for sent in sents:
-                if random.random() < self.mask_ratio:
-                    if self.keep_leading_word:
-                        leading_few_words = " ".join(word_tokenize(sent)[:self.num_lead_words]) + " "
-                    else:
-                        leading_few_words = ""
-                    masked_sents.append(sent)
-                    masked_context += leading_few_words + self.mask_token
-                else:
-                    masked_context += sent
-        return masked_context, masked_sents
+        self.articles = articles
+        self._check_point('Finished _preparing_self_info')
+    
+    # def generate_context(self, mask_method):
+    #     # self.conversations = self.conversations[:2]
+    #     resulting_contexts = []
+    #     for conversation in self.conversations:
+
+    #         if mask_method == 'self-info-sent':
+    #             masked_context, masked_sents = self.self_info_sent_mask(conversation)
+    #         elif mask_method == 'Random':
+    #             masked_context, masked_sents = self.random_mask_context(conversation.context)
+
+    #         if not self.varify_context_length(masked_context):
+    #             continue
+
+    #         resulting_contexts.append(
+    #             ArxivContext(text='', entry_id=conversation.id, context=masked_context, context_masked=True, masked_sents=masked_sents)
+    #         )
+
+    #     return resulting_contexts
+
+    # def random_mask_context(self, context):
+    #     masked_context = ''
+    #     masked_sents = []
+
+    #     for sent in conversation.context:
+    #         role = sent[0]
+    #         value = sent[1]
+    #         sents = re.split(self.sent_tokenize_pattern, value)
+    #         masked_context += role + ": "
+    #         for sent in sents:
+    #             if random.random() < self.mask_ratio:
+    #                 if self.keep_leading_word:
+    #                     leading_few_words = " ".join(word_tokenize(sent)[:self.num_lead_words]) + " "
+    #                 else:
+    #                     leading_few_words = ""
+    #                 masked_sents.append(sent)
+    #                 masked_context += leading_few_words + self.mask_token
+    #             else:
+    #                 masked_context += sent
+    #     return masked_context, masked_sents
         
-    def self_info_sent_mask(self, conversation: Conversation, output = False):
-        convs = []
-        sent_self_info = []
-        masked_context = ''
-        masked_sents = []
+    # def self_info_sent_mask(self, conversation: Conversation, output = False):
+    #     convs = []
+    #     sent_self_info = []
+    #     masked_context = ''
+    #     masked_sents = []
 
-        f = open(os.path.join(self.path, f'{conversation.id}.txt'), 'w', encoding='utf-8')
+    #     f = open(os.path.join(self.path, f'{conversation.id}.txt'), 'w', encoding='utf-8')
 
-        for sent in conversation.context:
-            role = sent[0]
-            value = sent[1]
-            sents = re.split(self.sent_tokenize_pattern, value)
-            sents = [sent.strip() for sent in sents if sent.strip()]
-            utterences = []
-            for sent in sents:
-                if not self.varify_context_length(sent):
-                    return None, None
-                tokens, self_info = get_self_information(sent)
-                info = np.mean(self_info)
-                utterences.append((sent, info))
-                sent_self_info.append(info)
-                f.write(f'{sent}\n{info}\n\n')
-            convs.append((role, utterences))
-        self.ppl_threshold = np.percentile(sent_self_info, self.mask_ratio * 100)
-        for role, utterences in convs:
-            masked_context += role + ': '
-            for sent, info in utterences:
-                if info < self.ppl_threshold:
-                    if self.keep_leading_word:
-                        leading_few_words = " ".join(word_tokenize(sent)[:self.num_lead_words]) + " "
-                    else:
-                        leading_few_words = ""
-                    masked_sents.append(sent)
-                    masked_context += leading_few_words + self.mask_token
-                else:
-                    masked_context += sent
-        f.close()
-        return masked_context, masked_sents
+    #     for sent in conversation.context:
+    #         role = sent[0]
+    #         value = sent[1]
+    #         sents = re.split(self.sent_tokenize_pattern, value)
+    #         sents = [sent.strip() for sent in sents if sent.strip()]
+    #         utterences = []
+    #         for sent in sents:
+    #             if not self.varify_context_length(sent):
+    #                 return None, None
+    #             tokens, self_info = get_self_information(sent)
+    #             info = np.mean(self_info)
+    #             utterences.append((sent, info))
+    #             sent_self_info.append(info)
+    #             f.write(f'{sent}\n{info}\n\n')
+    #         convs.append((role, utterences))
+    #     self.ppl_threshold = np.percentile(sent_self_info, self.mask_ratio * 100)
+    #     for role, utterences in convs:
+    #         masked_context += role + ': '
+    #         for sent, info in utterences:
+    #             if info < self.ppl_threshold:
+    #                 if self.keep_leading_word:
+    #                     leading_few_words = " ".join(word_tokenize(sent)[:self.num_lead_words]) + " "
+    #                 else:
+    #                     leading_few_words = ""
+    #                 masked_sents.append(sent)
+    #                 masked_context += leading_few_words + self.mask_token
+    #             else:
+    #                 masked_context += sent
+    #     f.close()
+    #     return masked_context, masked_sents
     
 class NewsContextManager(ArxivContextManager):
 

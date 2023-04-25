@@ -1,0 +1,12 @@
+transformers
+spacy
+en-core-web-sm
+bs4
+evaluate
+openai
+pandas
+numpy
+torch
+tqdm
+datasets
+filelock

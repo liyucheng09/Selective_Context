@@ -179,6 +179,9 @@ class ArxivContextManager:
                 all_token_self_info.extend(self_info)
 
                 noun_phrases, noun_phrases_info = self._calculate_lexical_unit(tokens, self_info)
+                
+                if len(all_noun_phrases) != 0:
+                    noun_phrases[0] = f" {noun_phrases[0]}"
                 all_noun_phrases.extend(noun_phrases)
                 all_noun_phrases_info.extend(noun_phrases_info)
             
@@ -263,7 +266,7 @@ class ArxivContextManager:
             sents = re.split(self.sent_tokenize_pattern, ''.join(tokens))
             sents = [sents[0][:-1]] + [' ' + sent[:-1] for sent in sents[1:-1]] + [' ' + sents[-1]]
 
-            sent_self_info = _unit_info(tokens, self_info, units)
+            sent_self_info = _unit_info(tokens, self_info, sents)
 
             # now we got sentence self_info, we need to calculate the self_info for each phrase
             all_noun_phrases = []
@@ -370,6 +373,7 @@ class ArxivContextManager:
                 pickle.dump(self, f)
     
     def self_info_mask(self, sents: List[str], self_info: List[float], mask_level):
+        # mask_level: mask sentences, phrases, or tokens
         sents_after_mask = []
         masked_sents = []
                 
@@ -656,7 +660,7 @@ class NewsContextManager(ArxivContextManager):
 
 def get_self_information(text, num_retry = 5):
     # text = text[:1000]
-    openai_key = os.environ["OPENAI_API_KEY"]
+    openai.api_key = os.environ["OPENAI_API_KEY"]
 
     for _ in range(num_retry):
         try:

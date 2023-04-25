@@ -1,10 +1,12 @@
-<div style="text-align:center">
+<p align="center">
     <img src="results/sc.png" alt="Logo of Selective Context" width="auto" height="150" />
-</div>
+</p>
 
 # Selective Context for Large Language Models
 
-Selective Context is a novel approach for optimizing the usage of context in Large Language Models (LLMs) by filtering out less informative content. This approach allows LLMs to process long documents and maintain extended conversations more efficiently without compromising their performance on various tasks. This repository contains the code and data for the paper: [Selective Context: Optimizing Context Length for Large Language Models](LINK_TO_PAPER).
+Selective Context is a novel approach for optimizing the usage of context in Large Language Models (LLMs) by filtering out less informative content. This approach allows LLMs to process long documents and maintain extended conversations more efficiently without compromising their performance on various tasks. 
+
+This repository contains the code and data for the paper: [Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering](https://arxiv.org/abs/2304.12102).
 
 ## Key Features
 

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+st.set_page_config(layout="wide")
 
 @dataclass
 class LexicalUnits:
@@ -234,23 +235,29 @@ class SelectiveContext:
 # here we ask the user to input the text and the reduce ratio
 # then we call the SelectiveContext to compress the text
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource()
 def load_model():
-    global model
     model = SelectiveContext()
+    return model
 
 st.title("Selective Context: Compress your prompt")
-st.write("This is a demo for the Selective Context algorithm. You can use this algorithm to compress your prompt. The algorithm will automatically filter out the sentences that are not important to the prompt. You can also choose to filter out phrases or tokens instead of sentences. The algorithm is based on the paper [Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering](https://arxiv.org/abs/2304.12102).")
+st.markdown("This is a demo for the **Selective Context** algorithm.")
+st.markdown("Use this algorithm to **compress** your prompt, so that LLMs can deal with **2x more context**!")
+st.markdown("- The algorithm filters out the content that is less informative. \n - You can also choose to filter out phrases or tokens instead of sentences. \n - Checkout the paper for details and experiments! [https://arxiv.org/abs/2304.12102](https://arxiv.org/abs/2304.12102).")
+st.write("")
 
-ratio = st.radio("Please choose the reduce ratio", (0.2, 0.35, 0.5, 0.65, 0.8))
-reduce_level = st.radio("Please choose the reduce level", ('sent', 'phrase', 'token'))
+st.subheader("Demo")
+
+ratio = st.radio("Please choose the compress ratio: ", (0.2, 0.35, 0.5, 0.65, 0.8))
+reduce_level = st.radio("Please choose the reduce level: ", ('phrase', 'token', 'sent'))
 
 text = st.text_area("Please input your text here", height=300)
 
 if st.button("Compress"):
-    load_model()
+    model = load_model()
     context, masked_sents = model(text, reduce_ratio=ratio, reduce_level=reduce_level)
-    st.write("The compressed context is:")
-    st.write(context)
-    st.write("The filtered out sentences are:")
+    st.subheader("The compressed context is:")
+    st.code(context)
+    # st.divider()
+    st.subheader("The filtered out content is:")
     st.write(masked_sents)

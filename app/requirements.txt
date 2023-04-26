@@ -1,0 +1,4 @@
+transformers
+spacy
+en-core-web-sm
+nltk

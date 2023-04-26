@@ -8,6 +8,9 @@ Selective Context is a novel approach for optimizing the usage of context in Lar
 
 This repository contains the code and data for the paper: [Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering](https://arxiv.org/abs/2304.12102).
 
+### Updates!!
+Try our demo on [Huggingface Space](https://huggingface.co/spaces/liyucheng/selective_context).
+
 ## Key Features
 
 - **Efficient Context Management**: Selective Context maximizes the utility of fixed context length in LLMs, allowing them to process long documents and extended conversations more efficiently.
@@ -32,6 +35,11 @@ To get started, follow these steps:
 3. Run the Selective Context demo:
    ```
    python selective_context.py
+   ```
+
+4. If you prefer to try with web interface, try our streamlit app:
+   ```
+   streamlit run app/app.py
    ```
 
 ## Code Structure

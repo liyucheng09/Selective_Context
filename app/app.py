@@ -248,7 +248,7 @@ st.write("")
 
 st.subheader("Demo")
 
-ratio = st.radio("Please choose the compress ratio: ", (0.2, 0.35, 0.5, 0.65, 0.8))
+ratio = st.radio("Please choose the compress ratio [we recommend 0.5]: ", (0.5, 0.2, 0.35, 0.65, 0.8))
 reduce_level = st.radio("Please choose the reduce level: ", ('phrase', 'token', 'sent'))
 
 text = st.text_area("Please input your text here", height=300)

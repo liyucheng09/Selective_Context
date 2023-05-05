@@ -10,3 +10,4 @@ torch
 tqdm
 datasets
 filelock
+# zh-core-web-sm==3.5.0

@@ -1,4 +1,4 @@
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, BertTokenizer
 import torch
 import streamlit as st
 import re
@@ -34,26 +34,40 @@ class LexicalUnits:
 
 class SelectiveContext:
 
-    def __init__(self, model_type = 'gpt2'):
+    def __init__(self, model_type = 'gpt2', lang = 'en'):
 
         self.model_type = model_type
+        self.lang = lang
 
         # this means we calculate self-information sentence by sentence
         self.sent_level_self_info = True
 
-        self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-
-        self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
-        self.nlp.add_pipe('merge_noun_chunks')
+        self._prepare_phrase_tokenizer()
         self.sent_tokenize_pattern = r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s"
         self.phrase_mask_token = ''
         self.sent_mask_token = "<...some content omitted.>"
 
         self._prepare_model()
+    
+    def _prepare_phrase_tokenizer(self):
+        # we use space to tokenize sentence into phrases
+        # for English, we should use `spacy.load("en_core_web_sm").add_pipe('merge_noun_chunks')`
+        # for Chinese, use `nlp = spacy.load('zh_core_web_sm')`` directly
+        lang = self.lang
+        if lang == "en":
+            self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
+            self.nlp.add_pipe('merge_noun_chunks')
+        elif lang == "zh":
+            self.nlp = spacy.load('zh_core_web_sm', disable=["ner"])
 
     def _prepare_model(self):
         if self.model_type == 'gpt2':
-            self.model = GPT2LMHeadModel.from_pretrained('gpt2')
+            if self.lang == 'zh':
+                self.model = GPT2LMHeadModel.from_pretrained('uer/gpt2-chinese-cluecorpussmall')
+                self.tokenizer = BertTokenizer.from_pretrained('uer/gpt2-chinese-cluecorpussmall')
+            else:
+                self.model = GPT2LMHeadModel.from_pretrained('gpt2')
+                self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
             self.model.to(DEVICE)
             self.model.eval()
 
@@ -67,9 +81,12 @@ class SelectiveContext:
         raise NotImplementedError
 
     def _get_self_info_via_gpt2(self, text: str) -> Tuple[List[str], List[float]]:
-        text = f"<|endoftext|>{text}"
+        if self.lang == 'en':
+            text = f"<|endoftext|>{text}"
+        elif self.lang == 'zh':
+            text = f"[CLS]{text}"
         with torch.no_grad():
-            encoding = self.tokenizer(text, return_tensors='pt')
+            encoding = self.tokenizer(text, add_special_tokens=False, return_tensors='pt')
             encoding = encoding.to(DEVICE)
             outputs = self.model(**encoding)
             logits = outputs.logits
@@ -230,15 +247,9 @@ class SelectiveContext:
         context, masked_sents = self.self_info_mask(lexical_level[reduce_level].text, lexical_level[reduce_level].self_info, reduce_level)
         return context, masked_sents
     
-
 # streamlit app.py
 # here we ask the user to input the text and the reduce ratio
 # then we call the SelectiveContext to compress the text
-
-@st.cache_resource()
-def load_model():
-    model = SelectiveContext()
-    return model
 
 st.title("Selective Context: Compress your prompt")
 st.markdown("This is a demo for the **Selective Context** algorithm.")
@@ -248,10 +259,16 @@ st.write("")
 
 st.subheader("Demo")
 
+lang = st.radio("Please choose the language: ", ('en', 'zh'))
 ratio = st.radio("Please choose the compress ratio [we recommend 0.5]: ", (0.5, 0.2, 0.35, 0.65, 0.8))
 reduce_level = st.radio("Please choose the reduce level: ", ('phrase', 'token', 'sent'))
 
 text = st.text_area("Please input your text here", height=300)
+
+@st.cache_resource()
+def load_model(lang):
+    model = SelectiveContext(lang=lang)
+    return model
 
 if st.button("Compress"):
     model = load_model()

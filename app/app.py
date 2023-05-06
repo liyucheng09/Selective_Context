@@ -218,7 +218,7 @@ class SelectiveContext:
         if level == 'phrase':
             return self.phrase_mask_token
         elif level == 'sent':
-            return self.mask_token
+            return self.sent_mask_token
         elif level == 'token':
             return ''
     
@@ -267,7 +267,7 @@ def load_model(lang):
     return model
 
 if st.button("Compress"):
-    model = load_model()
+    model = load_model(lang)
     context, masked_sents = model(text, reduce_ratio=ratio, reduce_level=reduce_level)
     st.subheader("The compressed context is:")
     st.code(context)

@@ -14,3 +14,5 @@ test.tsv
 data/500arxiv
 data/results
 htcondor/
+src/selective_context.egg-info/
+dist/

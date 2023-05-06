@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="results/sc.png" alt="Logo of Selective Context" width="auto" height="150" />
+    <img src="https://github.com/liyucheng09/Selective_Context/blob/main/results/sc.png" alt="Logo of Selective Context" width="auto" height="150" />
 </p>
 
 # Selective Context for Large Language Models
@@ -21,26 +21,32 @@ Try our demo on [Huggingface Space](https://huggingface.co/spaces/liyucheng/sele
 
 To get started, follow these steps:
 
-1. Clone the repository:
+1. Install `selective-context` via Pypi:
    ```
-   git clone https://github.com/liyucheng09/Selective_Context.git
-   cd Selective_Context
-   ```
-
-2. Install the required packages:
-   ```
-   pip install -r requirements.txt
+   pip install selective-context
    ```
 
-3. Run the Selective Context demo:
+2. Import `SelectiveContext`:
    ```
-   python selective_context.py
+   from selective_context import SelectiveContext
    ```
 
-4. If you prefer to try with web interface, try our streamlit app:
+3. Compress your prompt and context:
+   ```
+   sc = SelectiveContext(model_type='gpt2', lang='en')
+   context, reduced_content = sc(text)
+   ```
+
+4. You can also adjust the reduce ratio:
+   ```
+   context, reduced_content = sc(text, reduce_ratio = 0.5)
+   ```
+
+5. If you prefer to try with web interface, try our streamlit app:
    ```
    streamlit run app/app.py
    ```
+   Or directly visit our [Space](https://huggingface.co/spaces/liyucheng/selective_context) on Hugging Face Hub.
 
 ## Code Structure
 

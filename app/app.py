@@ -45,7 +45,7 @@ class SelectiveContext:
         self._prepare_phrase_tokenizer()
         self.sent_tokenize_pattern = r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s"
         self.phrase_mask_token = ''
-        self.sent_mask_token = "<...some content omitted.>"
+        self.sent_mask_token = "<deleted>"
 
         self._prepare_model()
     
@@ -218,11 +218,7 @@ class SelectiveContext:
         if level == 'phrase':
             return self.phrase_mask_token
         elif level == 'sent':
-            if self.keep_leading_word:
-                leading_few_words = " ".join(word_tokenize(sent)[:self.num_lead_words]) + " "
-            else:
-                leading_few_words = ""
-            return leading_few_words + self.mask_token
+            return self.mask_token
         elif level == 'token':
             return ''
     

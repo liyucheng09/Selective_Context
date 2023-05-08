@@ -2,9 +2,9 @@
     <img src="https://github.com/liyucheng09/Selective_Context/blob/main/results/sc.png" alt="Logo of Selective Context" width="auto" height="150" />
 </p>
 
-# Selective Context for Large Language Models
+# Selective Context for LLMs
 
-Selective Context is a novel approach for optimizing the usage of context in Large Language Models (LLMs) by filtering out less informative content. This approach allows LLMs to process long documents and maintain extended conversations more efficiently without compromising their performance on various tasks. 
+Selective Context compresses your prompt and context to allows LLMs (such as ChatGPT) to process 2x more content. It is especially useful in dealing with long documents and maintaining long conversations without compromising their performance on various tasks!
 
 This repository contains the code and data for the paper: [Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering](https://arxiv.org/abs/2304.12102).
 

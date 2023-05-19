@@ -105,11 +105,12 @@ class ArxivContextManager:
         compute_self_info = True,
         sent_mask_token = "<...some content omitted.>",
         phrase_mask_token = "",
-        num_articles = 200
+        num_articles = 200,
+        lang = "en",
     ):
         self.path = path
-        self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
-        self.nlp.add_pipe('merge_noun_chunks')
+        self.lang = lang
+        self._prepare_phrase_tokenizer()
         self.num_articles = num_articles
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2") if tokenizer is None else tokenizer
 
@@ -128,6 +129,17 @@ class ArxivContextManager:
         self.sent_tokenize_pattern = r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s"
         self.load_articles(path)
         self._prepare_self_info()
+    
+    def _prepare_phrase_tokenizer(self):
+        # we use space to tokenize sentence into phrases
+        # for English, we should use `spacy.load("en_core_web_sm").add_pipe('merge_noun_chunks')`
+        # for Chinese, use `nlp = spacy.load('zh_core_web_sm')`` directly
+        lang = self.lang
+        if lang == "en":
+            self.nlp = spacy.load("en_core_web_sm", disable=["ner"])
+            self.nlp.add_pipe('merge_noun_chunks')
+        elif lang == "zh":
+            self.nlp = spacy.load('zh_core_web_sm', disable=["ner"])
     
     def _prepare_self_info(self):
         logging.info("Preparing self information...")

@@ -324,7 +324,11 @@ class ArxivContextManager:
         if num_articles is None or num_articles > len(self.articles):
             num_articles = len(self.articles)
 
-        for article in tqdm(self.articles[:num_articles], desc="Generating contexts"):
+        for article in tqdm(self.articles, desc="Generating contexts"):
+            if len(resulting_contexts) >= num_articles:
+                break
+            if not self.varify_context_length(self.beautify_context(article.sections[0])):
+                continue
             if mask_level == 'sent':
                 lexical_units = article.units[0]
                 assert lexical_units.unit_type == 'sent'
@@ -349,7 +353,7 @@ class ArxivContextManager:
             elif ( self.__class__.__name__ == 'ConversationContextManager' and \
                 mask_method == "no2" ):
 
-                # in this case, we use the entire context as prompt
+                # in this case, we use the entire context (except the last responses) as prompt
                 context = article.prompt
                 masked_sents = None
             

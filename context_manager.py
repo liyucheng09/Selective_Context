@@ -319,6 +319,7 @@ class ArxivContextManager:
     def beautify_context(self, context: str) -> str:
         context = context.replace("<cit.>", '').replace('<ref>', '')
         context = re.sub(r"\s+", " ", context)
+        context = re.sub(r"\n+", " ", context)
         return context
     
     def varify_context_length(self, context: str) -> bool:
@@ -371,6 +372,7 @@ class ArxivContextManager:
             
             elif mask_method == "no" or mask_method == "no2":
                 context = article.sections[0]
+                context = self.beautify_context(context)
                 masked_sents = None
 
             resulting_contexts.append(

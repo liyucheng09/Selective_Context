@@ -19,8 +19,8 @@ def display_performance(context: ContextAndAnswer):
     print(f'\nPerformance summary:\ntask type: {context.task_name}\ndataset type: {context.dataset_type}\nMask_ratio: {context.mask_ratio}\nMetrics: {metric_result}\n')
 
 def main():
-    arxiv_path, news_path, conversation_path, save_to_path, num_articles, model_name, task_name = sys.argv[1:]
-    logging.basicConfig(level=logging.INFO, filename=os.path.join(save_to_path, f'log_{model_name}_{task_name}.txt'), filemode='w', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    arxiv_path, news_path, conversation_path, save_to_path, num_articles, model_name = sys.argv[1:]
+    logging.basicConfig(level=logging.INFO, filename=os.path.join(save_to_path, f'log_{model_name}.txt'), filemode='w', format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logging.info(f'arxiv_path: {arxiv_path}, news_path: {news_path}, conversation_path: {conversation_path}, save_to_path: {save_to_path}, num_articles: {num_articles}, model_name: {model_name}, task_name: {task_name}')
     num_articles = int(num_articles)
     
@@ -29,11 +29,11 @@ def main():
 
     mask_types = ['no', 'self-info', 'Random']
     # mask_types = ['no', 'self-info', 'Random', 'no2']
-    mask_levels = ['phrase',]
+    mask_levels = ['phrase', ]
 
     # task_types = ['continue_conversation']
-    task_types = [task_name]
-    # task_types = ['reconstruction', 'summarisation', 'qa', ]
+    # task_types = [task_name]
+    task_types = ['reconstruction', 'summarisation', 'qa', ]
 
     # dataset_types = [dataset_type]
     dataset_types = ['news', 'arxiv']
@@ -64,7 +64,8 @@ def main():
     }
 
     if do_eval:
-        eavluator = Evaluator(metrics = ['bleu', 'meteor', 'rouge', 'bertscore', 'bleurt'])
+        eavluator = Evaluator(metrics = ['bleu', 'meteor', 'rouge',])
+        # eavluator = Evaluator(metrics = ['bleu', 'meteor', 'rouge', 'bertscore', 'bleurt'])
     managers = [ task_managers[task_type](task_type, model, save_to_path) for task_type in task_types for model in models]
 
     for dataset_type in dataset_types:

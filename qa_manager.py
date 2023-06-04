@@ -56,26 +56,39 @@ class ContextAndAnswer:
             
 class TaskManager:
 
-    def __init__(self, task_name, model_type, save_path, metrics = ['bleu', 'meteor', 'rouge', ]):
+    def __init__(self, task_name, model_type, save_path, only_eval = False, metrics = ['bleu', 'meteor', 'rouge', ]):
         self.task_name = task_name
         self.model_type = model_type
         self.save_path = save_path
 
-        self._prepare_model()
+        if not only_eval:
+            self._prepare_model()
         # self._prepare_evaluation(metrics)
     
     def _prepare_model(self):
         # prepare model and generate function
         # should support GPT-3.5-turbo, llama-7B,13B,30B, and Flan family?
+        print(f'-- Start preparing model {self.model_type}.')
         if self.model_type == "gpt-3.5-turbo":
             self.model_instruct_tuned = True
             self._generate_answer = self._gpt_3_5_turbo_generate
         elif 'llama' in self.model_type:
             self.model_instruct_tuned = False
             size = self.model_type.split('-')[-1]
-            assert size in ['7b', '13b']
-            self.batch_size = 12 if size == '13b' else 24
-            self.model = LlamaForCausalLM.from_pretrained(f"huggyllama/llama-{size}", torch_dtype=torch.float16, device_map='auto')
+            assert size in ['7b', '13b', '30b']
+            bs = {
+                '7b': 24,
+                '13b': 12,
+                '30b': 6,
+            }
+            self.batch_size = bs[size]
+            if size == '30b':
+                max_memory = f'{int(torch.cuda.mem_get_info()[0]/1024**3)-2}GB'
+                n_gpus = torch.cuda.device_count()
+                max_memory = {i: max_memory for i in range(n_gpus)}
+                self.model = LlamaForCausalLM.from_pretrained(f"huggyllama/llama-{size}", load_in_8bit=True, device_map='auto', max_memory=max_memory, cache_dir="/mnt/fast/nobackup/scratch4weeks/yl02706/HF_Cache")
+            else:
+                self.model = LlamaForCausalLM.from_pretrained(f"huggyllama/llama-{size}", torch_dtype=torch.float16, device_map='auto')
             self.tokenizer = LlamaTokenizerFast.from_pretrained(f"huggyllama/llama-{size}")
             self.model.eval()
 
@@ -112,12 +125,18 @@ class TaskManager:
                 # num_beams=4,
             )
             self._generate_answer = self._lm_generate
-        elif self.model_type == 'flan-t5-xxl':
+        elif 'flan' in self.model_type:
             self.model_instruct_tuned = True
-            tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-xxl")
+            tokenizer = T5Tokenizer.from_pretrained(f"google/{model_type}")
             model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-xxl", torch_dtype=torch.float16, device_map="auto")
             model.eval()
-            self.batch_size = 12
+            bs = {
+                'flan-t5-xxl': 12,
+                'flan-t5-base': 24,
+                'flan-t5-large': 24,
+                'flan-t5-xl': 24,
+            }
+            self.batch_size = bs[self.model_type]
 
             self.model = model
             self.tokenizer = tokenizer
@@ -175,7 +194,7 @@ class TaskManager:
                 generation_config = None
             self.generator = pipeline('text-generation', model=self.model, tokenizer=self.tokenizer, generation_config=generation_config)
         print('Batched generation started. num_prompts:', len(prompts), ', batch_size:', self.batch_size, ', self.model.device:', self.model.device, ', pipeline.device:', self.generator.device)
-        outputs = self.generator(prompts, max_new_tokens=450, batch_size = self.batch_size,)
+        outputs = self.generator(prompts, max_new_tokens=450, batch_size = self.batch_size, return_full_text=False)
         print(outputs)
         return [output[0]['generated_text'] for output in outputs]
     
@@ -234,6 +253,11 @@ class TaskManager:
             pickle.dump(self.ans, f)
         logging.info(f'Saved to {file_path}')
         print(f'Saved to {file_path}')
+    
+    def _result_output_path(self, file_path, dataset_type, model_type, context_id, context_type,):
+        if context_type == 'no':
+            return os.path.join(file_path, f"{dataset_type}_{model_type}_{context_id}_{context_type}.tsv")
+        return os.path.join(file_path, f"{dataset_type}_{model_type}_{context_id}_{context_type}_{self.mask_ratio}.tsv")
 
 class Evaluator:
 
@@ -285,23 +309,26 @@ class Summarisation(TaskManager):
         elif self.model_instruct_tuned:
             prompt = f"{context.context}\n\n----\n\nSummarise the above content."
         elif not self.model_instruct_tuned:
-            prompt = f"{context.context}\n\nThe summary:"
+            prompt = f"{context.context}\n\nTl;dr\n"
+            # prompt = f"{context.context}\n\nThe summary:"
         return prompt
 
     def get_answer(self):
         ans = self.ans
         answer_of_contexts = ans.answer_of_contexts if ans.answer_of_contexts is not None else {}
         for context_type, contexts in ans.contexts_dict.items():
-            if context_type not in answer_of_contexts:
-                answer_of_contexts[context_type] = []
-            else:
-                continue
+            answer_of_contexts[context_type] = []
+            # if context_type not in answer_of_contexts:
+            #     answer_of_contexts[context_type] = []
+            # else:
+            #     continue
 
             if self.model_type != "gpt-3.5-turbo":
                 prompts = []
                 out_files = []
             for context in contexts:
                 summary_save_file = os.path.join(self.summary_saved_path, f"{ans.dataset_type}_{self.model_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
+                # summary_save_file = self._result_output_path(self.summary_saved_path, ans.dataset_type, self.model_type, context.id, context_type)
                 if os.path.exists(summary_save_file):
                     pass
                 else:
@@ -315,7 +342,7 @@ class Summarisation(TaskManager):
                         prompts.append(prompt)
                         out_files.append(summary_save_file)
             
-            if self.model_type != "gpt-3.5-turbo":
+            if self.model_type != "gpt-3.5-turbo" and len(prompts)!=0:
                 # generate answers
                 summaries = self._lm_answer_batch(prompts)
                 for summary, summary_save_file in zip(summaries, out_files):
@@ -326,12 +353,17 @@ class Summarisation(TaskManager):
             
             for context in contexts:
                 summary_save_file = os.path.join(self.summary_saved_path, f"{ans.dataset_type}_{self.model_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
+                # summary_save_file = self._result_output_path(self.summary_saved_path, ans.dataset_type, self.model_type, context.id, context_type)
                 # load the summary
                 with open(summary_save_file, 'r') as f:
+                    summary = f.read()
                     if self.model_instruct_tuned:
-                        summary = f.read()
+                        if 'ASSISTANT:' in summary:
+                            summary = summary.split('ASSISTANT:', 1)[1].strip()
+                        else:
+                            summary = summary
                     elif not self.model_instruct_tuned:
-                        summary = f.read().rsplit('\n', 1)[0].strip()
+                        summary = summary.rsplit('\n', 1)[0].strip()
 
                 answer_of_contexts[context_type].append(summary)
         ans.answer_of_contexts = answer_of_contexts
@@ -432,7 +464,9 @@ class QA(TaskManager):
             reference_answers.append(answers)
         
         ans.questions = all_questions
-        ans.answer_of_contexts = {ans.reference_context: reference_answers}
+        if self.model_type == 'gpt-3.5-turbo':
+            # other models need to generate answers from scratch
+            ans.answer_of_contexts = {ans.reference_context: reference_answers}
         return ans
 
     def prompt_for_the_task(self, context: ArxivContext, task : str, questions: List[str] = None):
@@ -460,10 +494,11 @@ class QA(TaskManager):
         answer_of_contexts = ans.answer_of_contexts
         logging.info(f"Answer generation task is started.")
         for context_type, contexts in ans.contexts_dict.items():
-            if context_type not in answer_of_contexts:
-                answer_of_contexts[context_type] = []
-            else:
-                continue
+            answer_of_contexts[context_type] = []
+            # if context_type not in answer_of_contexts:
+            #     answer_of_contexts[context_type] = []
+            # else:
+            #     continue
             
             if self.model_type != 'gpt-3.5-turbo':
                 prompts = []
@@ -472,7 +507,7 @@ class QA(TaskManager):
                 if ans.questions[index] is None:
                     answer_of_contexts[context_type].append(None)
                     continue
-                answer_save_file = os.path.join(self.question_saved_path, f"{ans.dataset_type}_{self.model_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
+                answer_save_file = self._result_output_path(self.question_saved_path, ans.dataset_type, self.model_type, context.id, context_type)
 
                 if os.path.exists(answer_save_file):
                     pass
@@ -491,7 +526,7 @@ class QA(TaskManager):
                         prompts.append(prompt)
                         out_files.append(answer_save_file)
             
-            if self.model_type != 'gpt-3.5-turbo':
+            if self.model_type != 'gpt-3.5-turbo' and len(prompts)!=0:
                 outs = self._lm_answer_batch(prompts)
                 for out_file, out in zip(out_files, outs):
                     with open(out_file, "w") as f:
@@ -501,15 +536,18 @@ class QA(TaskManager):
             for index, context in enumerate(contexts):
                 if ans.questions[index] is None:
                     continue
-                answer_save_file = os.path.join(self.question_saved_path, f"{ans.dataset_type}_{context.id}_{context_type}_{self.mask_ratio}.tsv")
+                answer_save_file = self._result_output_path(self.question_saved_path, ans.dataset_type, self.model_type, context.id, context_type)
                 # load the answers
                 try:
                     with open(answer_save_file, "r") as f:
+                        answer = f.read()
                         if not self.model_instruct_tuned:
-                            answer = f.read()
                             answers = [answer.rsplit("\n\n", 1)[0]]
                         elif self.model_instruct_tuned:
-                            answers = [f.read()]
+                            if 'ASSISTANT:' in answer:
+                                answers = answer.split('ASSISTANT:', 1)[1].strip()
+                            else:
+                                answers = [answer]
                         # elif self.model_type == 'gpt-3.5-turbo':
                         #     answers = pd.read_csv(f, sep = "\t", on_bad_lines='skip')
                         #     answers = answers['Answer'].tolist()
@@ -607,7 +645,7 @@ class OriginalContextReconsutrction(TaskManager):
                         with open(summary_save_file, 'w') as f:
                             f.write(summary)
             
-            if self.model_type != 'gpt-3.5-turbo':
+            if self.model_type != 'gpt-3.5-turbo' and len(prompts)!=0:
                 # generate the summaries in batch
                 outs = self._lm_answer_batch(prompts)
                 for out, out_file in zip(outs, out_files):
@@ -621,6 +659,11 @@ class OriginalContextReconsutrction(TaskManager):
                     summary = f.read()
                     if not self.model_instruct_tuned:
                         summary = summary.rsplit("\n", 1)[0]
+                    elif self.model_instruct_tuned:
+                        if 'ASSISTANT:' in summary:
+                            summary = summary.split('ASSISTANT:', 1)[1].strip()
+                        else:
+                            summary = summary
                 answer_of_contexts[context_type].append(summary)
         ans.answer_of_contexts = answer_of_contexts
         self.ans = ans
@@ -632,11 +675,11 @@ class OriginalContextReconsutrction(TaskManager):
         # prepare the prompt for original context reconstruction
 
         if 'vicuna' in self.model_type:
-            prompt = f'A chat between a curious user and an artificial intelligence assistant. The assistant gives professional answers to the user\'s request.\nUSER: \n----\n {context.context}\n\n----\n\nThere are some phrases omitted in the following paragraphs. Please infer the missing parts based on contextual clues and reconstruct and show me the original content. Remember, generate only the reconstruted paragraphs and nothing else.\nASSISTANT:'
+            prompt = f'A chat between a curious user and an artificial intelligence assistant. The assistant gives professional answers to the user\'s request.\nUSER: \n----\n {context.context}\n\n----\n\nThere are some phrases omitted in the following paragraphs. Please infer the missing parts based on contextual clues, reconstruct and show me the original content.\nASSISTANT: The original content is as fellow: '
         elif self.model_instruct_tuned:
             prompt = f"There are some phrases omitted in the following paragraphs. Please infer the missing parts based on contextual clues and reconstruct and show me the original content. Remember, generate only the reconstruted paragraphs and nothing else.\n---\n{context.context}"
         elif not self.model_instruct_tuned:
-            prompt = f"{context.context}\n\nThere are some phrases omitted in the above paragraphs. The complete paragraphs are:"
+            prompt = f"The noisy paragraph is as fellow: {context.context}\n\nThere are some phrases omitted above. The complete paragraphs are: "
         return prompt
     
     def evaluate(self, evaluator: Evaluator):

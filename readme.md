@@ -65,6 +65,16 @@ python main.py
 
 This will run the experiments on arxiv papers, BBC news articles, and conversation transcripts with four different NLP tasks: summarization, question answering, original context reconstruction, and conversation.
 
+## Dataset in the paper
+
+The dataset used in the paper can be found at:
+
+- Arxiv: [HF Hub](https://huggingface.co/datasets/liyucheng/arxiv-march-2023)
+- BBC News: [HF Hub](https://huggingface.co/datasets/liyucheng/bbc_new_2303)
+- ShareGPT.com: [HF Hub](https://huggingface.co/datasets/liyucheng/sharegpt-500)
+
+The datasets are created by ourselves so if you need citation just use the citation of this tool.
+
 ## Citation
 
 If you find this repository helpful or use our method in your research, please consider citing our paper:

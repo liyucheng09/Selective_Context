@@ -9,6 +9,7 @@ htcondor/docker_stderror
 data/news
 data/*.json
 data/*.txt
+*.zip
 *.pkl
 test.tsv
 data/500arxiv

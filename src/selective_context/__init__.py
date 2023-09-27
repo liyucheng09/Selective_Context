@@ -46,7 +46,8 @@ class SelectiveContext:
         self.sent_tokenize_pattern = r"(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?)\s"
         self.phrase_mask_token = ''
         self.sent_mask_token = "<...some content omitted.>"
-
+        self.keep_leading_word = False
+        self.mask_token = ''
         self._prepare_model()
     
     def _prepare_phrase_tokenizer(self):

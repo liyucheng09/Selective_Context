@@ -12,9 +12,9 @@ This repository contains the code and data for the paper: [Compressing Context t
 
 ### Updates!!
 
-**Oct 9 2023**: This work has been accepted for the main proceedings of **EMNLP 2023** :partying_face:. The paper link above is the latest conference version. If you are looking for the previous arxiv version of the paper: :point_right: [Unlocking Context Constraints of LLMs](https://arxiv.org/abs/2304.12102).
+- **Oct 9 2023**: This work has been accepted for the main proceedings of **EMNLP 2023** :partying_face:. The paper link above is the latest conference version. If you are looking for the previous arxiv version of the paper: :point_right: [Unlocking Context Constraints of LLMs](https://arxiv.org/abs/2304.12102).
 
-**May 6 2023**: Try our demo on [Huggingface Space](https://huggingface.co/spaces/liyucheng/selective_context).
+- **May 6 2023**: Try our demo on [Huggingface Space](https://huggingface.co/spaces/liyucheng/selective_context).
 
 ## Key Features
 

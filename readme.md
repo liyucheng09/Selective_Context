@@ -6,10 +6,15 @@
 
 Selective Context compresses your prompt and context to allows LLMs (such as ChatGPT) to process 2x more content. It is especially useful in dealing with long documents and maintaining long conversations without compromising their performance on various tasks!
 
-This repository contains the code and data for the paper: [Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering](https://arxiv.org/abs/2304.12102).
+This repository contains the code and data for the paper: [Compressing Context to Enhance Inference Efficiency of Large Language Models](https://arxiv.org/abs/2310.06201).
+
+
 
 ### Updates!!
-Try our demo on [Huggingface Space](https://huggingface.co/spaces/liyucheng/selective_context).
+
+**Oct 9 2023**: This work has been accepted for the main proceedings of **EMNLP 2023** :partying_face:. The paper link above is the latest conference version. If you are looking for the previous arxiv version of the paper: :point_right: [Unlocking Context Constraints of LLMs](https://arxiv.org/abs/2304.12102).
+
+**May 6 2023**: Try our demo on [Huggingface Space](https://huggingface.co/spaces/liyucheng/selective_context).
 
 ## Key Features
 
@@ -80,11 +85,11 @@ The datasets are created by ourselves so if you need citation just use the citat
 If you find this repository helpful or use our method in your research, please consider citing our paper:
 
 ```
-@misc{li2023unlocking,
-      title={Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering}, 
-      author={Yucheng Li},
+@misc{li2023compressing,
+      title={Compressing Context to Enhance Inference Efficiency of Large Language Models}, 
+      author={Yucheng Li and Bo Dong and Chenghua Lin and Frank Guerin},
       year={2023},
-      eprint={2304.12102},
+      eprint={2310.06201},
       archivePrefix={arXiv},
       primaryClass={cs.CL}
 }

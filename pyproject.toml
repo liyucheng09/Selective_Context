@@ -3,7 +3,7 @@ requires = ["setuptools", "wheel"]
 
 [project]
 name = "selective-context"
-version = "0.1.3"
+version = "0.1.4"
 description = "Compress your prompt and context to let LLMs deal with 2x more content."
 authors = [{name = "Yucheng Li", email = "liyucheng09@gmail.com"}]
 readme = "readme.md"

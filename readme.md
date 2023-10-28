@@ -29,7 +29,9 @@ To get started, follow these steps:
 1. Install `selective-context` via Pypi:
    ```
    pip install selective-context
+   python -m spacy download en_core_web_sm
    ```
+   If you run in Chinese, run `python -m spacy download en_core_web_sm` as well.
 
 2. Import `SelectiveContext`:
    ```

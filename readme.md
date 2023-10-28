@@ -36,7 +36,7 @@ To get started, follow these steps:
    from selective_context import SelectiveContext
    ```
 
-3. Compress your prompt and context:
+3. Compress your prompt and context. The `context` contains the compressed context:
    ```
    sc = SelectiveContext(model_type='gpt2', lang='en')
    context, reduced_content = sc(text)

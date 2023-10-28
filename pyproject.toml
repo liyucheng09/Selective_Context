@@ -17,8 +17,9 @@ dependencies = [
     "transformers",
     "torch",
     "nltk",
-    "spacy",
-    "numpy"
+    "spacy==3.2.0",
+    "numpy",
+    "click==8.0.4"
 ]
 requires-python = ">=3.7"
 

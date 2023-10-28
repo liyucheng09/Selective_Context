@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from nltk.tokenize import sent_tokenize, word_tokenize
 import time
 
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+print(f"Using device: {DEVICE}")
+
 @dataclass
 class LexicalUnits:
     unit_type: str

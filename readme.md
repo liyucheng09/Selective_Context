@@ -82,6 +82,11 @@ The dataset used in the paper can be found at:
 
 The datasets are created by ourselves so if you need citation just use the citation of this tool.
 
+If you have trouble accessing Huggingface Hub, download the data via:
+```
+wget https://github.com/liyucheng09/Selective_Context/releases/download/v0.1.0/data_dumps.zip
+```
+
 ## Citation
 
 If you find this repository helpful or use our method in your research, please consider citing our paper:

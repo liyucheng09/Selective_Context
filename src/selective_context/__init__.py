@@ -297,10 +297,6 @@ def main(
     file_to_process: str = None,
     file_to_save: str = None,
 ):
-    
-    global DEVICE
-    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {DEVICE}")
 
     sc = SelectiveContext(model_type=model_type, lang=lang)
 

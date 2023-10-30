@@ -40,7 +40,7 @@ class SelectiveContext:
 
         self.model_type = model_type
         self.lang = lang
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = DEVICE
 
         # this means we calculate self-information sentence by sentence
         self.sent_level_self_info = True

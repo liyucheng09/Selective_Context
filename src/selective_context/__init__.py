@@ -275,8 +275,7 @@ class SelectiveContext:
 
         self.mask_ratio = reduce_ratio
 
-        sents = re.split(self.sent_tokenize_pattern, context)
-        sents = [sent.strip() for sent in sents if sent.strip()]
+        sents = [sent.strip() for sent in re.split(self.sent_tokenize_pattern, context) if sent.strip()]
 
         # You want the reduce happen at sentence level, phrase level, or token level?
         assert reduce_level in ['sent', 'phrase', 'token'], f"reduce_level should be one of ['sent', 'phrase', 'token'], got {reduce_level}"

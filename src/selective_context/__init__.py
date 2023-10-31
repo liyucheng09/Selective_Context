@@ -306,18 +306,24 @@ def main(
             if text == 'exit':
                 break
             context, masked_sents = sc(text)
-            print('***********\nThe resultsing context is: \n')
-            print(context, '\n\n')
-
-            print('***********\nThe content that has been filtered out is: \n')
-            print(masked_sents, '\n\n')
+            print_context_reduced_context(context, masked_sents)
     else:
         with open(file_to_process, 'r') as f:
             text = f.read()
         context, masked_sents = sc(text)
+        if file_to_save is not None:
+            with open(file_to_save, 'w') as f:
+                f.write(context)
+        else:
+            print_context_reduced_context(context, masked_sents)
 
-        with open(file_to_save, 'w') as f:
-            f.write(context)
+
+def print_context_reduced_context(context, masked_sents):
+    print('***********\nThe resultsing context is: \n')
+    print(context, '\n\n')
+    print('***********\nThe content that has been filtered out is: \n')
+    print(masked_sents, '\n\n')
+
 
 if __name__ == "__main__":
-    main(model_type='gpt2', lang = 'zh')
+    main(model_type='gpt2', lang = 'en', file_to_process='/Users/plala/codebase/opensource/Selective_Context/file')

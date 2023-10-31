@@ -326,4 +326,4 @@ def print_context_reduced_context(context, masked_sents):
 
 
 if __name__ == "__main__":
-    main(model_type='gpt2', lang = 'en', file_to_process='/Users/plala/codebase/opensource/Selective_Context/file')
+    main(model_type='gpt2', lang = 'zh', file_to_process='/Users/plala/codebase/opensource/Selective_Context/file')

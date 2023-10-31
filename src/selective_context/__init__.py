@@ -163,7 +163,7 @@ class SelectiveContext:
                 noun_phrases, noun_phrases_info = self._calculate_lexical_unit(tokens, self_info)
 
                 # We need to add a space before the first noun phrase for every sentence except the first one
-                if len(all_noun_phrases) != 0:
+                if all_noun_phrases:
                     noun_phrases[0] = f" {noun_phrases[0]}"
                 all_noun_phrases.extend(noun_phrases)
                 all_noun_phrases_info.extend(noun_phrases_info)

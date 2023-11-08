@@ -40,7 +40,7 @@ class SelectiveContext:
 
         self.model_type = model_type
         self.lang = lang
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = DEVICE
 
         # this means we calculate self-information sentence by sentence
         self.sent_level_self_info = True
@@ -163,7 +163,7 @@ class SelectiveContext:
                 noun_phrases, noun_phrases_info = self._calculate_lexical_unit(tokens, self_info)
 
                 # We need to add a space before the first noun phrase for every sentence except the first one
-                if len(all_noun_phrases) != 0:
+                if all_noun_phrases:
                     noun_phrases[0] = f" {noun_phrases[0]}"
                 all_noun_phrases.extend(noun_phrases)
                 all_noun_phrases_info.extend(noun_phrases_info)
@@ -275,8 +275,7 @@ class SelectiveContext:
 
         self.mask_ratio = reduce_ratio
 
-        sents = re.split(self.sent_tokenize_pattern, context)
-        sents = [sent.strip() for sent in sents if sent.strip()]
+        sents = [sent.strip() for sent in re.split(self.sent_tokenize_pattern, context) if sent.strip()]
 
         # You want the reduce happen at sentence level, phrase level, or token level?
         assert reduce_level in ['sent', 'phrase', 'token'], f"reduce_level should be one of ['sent', 'phrase', 'token'], got {reduce_level}"
@@ -297,10 +296,6 @@ def main(
     file_to_process: str = None,
     file_to_save: str = None,
 ):
-    
-    global DEVICE
-    DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {DEVICE}")
 
     sc = SelectiveContext(model_type=model_type, lang=lang)
 
@@ -310,18 +305,24 @@ def main(
             if text == 'exit':
                 break
             context, masked_sents = sc(text)
-            print('***********\nThe resultsing context is: \n')
-            print(context, '\n\n')
-
-            print('***********\nThe content that has been filtered out is: \n')
-            print(masked_sents, '\n\n')
+            print_context_reduced_context(context, masked_sents)
     else:
         with open(file_to_process, 'r') as f:
             text = f.read()
         context, masked_sents = sc(text)
+        if file_to_save is not None:
+            with open(file_to_save, 'w') as f:
+                f.write(context)
+        else:
+            print_context_reduced_context(context, masked_sents)
 
-        with open(file_to_save, 'w') as f:
-            f.write(context)
+
+def print_context_reduced_context(context, masked_sents):
+    print('***********\nThe resultsing context is: \n')
+    print(context, '\n\n')
+    print('***********\nThe content that has been filtered out is: \n')
+    print(masked_sents, '\n\n')
+
 
 if __name__ == "__main__":
     main(model_type='gpt2', lang = 'zh')

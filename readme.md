@@ -31,7 +31,7 @@ To get started, follow these steps:
    pip install selective-context
    python -m spacy download en_core_web_sm
    ```
-   If you are processing Chinese, run `python -m spacy download en_core_web_sm` as well.
+   If you are processing Chinese, run `python -m spacy download zh_core_web_sm` as well.
 
 2. Import `SelectiveContext`:
    ```

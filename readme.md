@@ -64,13 +64,17 @@ To get started, follow these steps:
 
 ## Experiments
 
-To reproduce the experiments from the paper, run the following command:
+To reproduce the experiments from the paper:
 
+1. First, you download the datasets required in the experiments:
 ```
-python main.py
+wget https://github.com/liyucheng09/Selective_Context/releases/download/v0.1.0rc1/datasets_dumps.zip
+unzip datasets_dumps.zip
 ```
-
-This will run the experiments on arxiv papers, BBC news articles, and conversation transcripts with four different NLP tasks: summarization, question answering, original context reconstruction, and conversation.
+2. You run:
+```
+python main.py datasets_dumps/arxiv datasets_dumps/news datasets_dump/conversation <output_path_to_save_results> <num_articles> <HF_model_name_or_path>
+```
 
 ## Dataset in the paper
 
@@ -84,7 +88,7 @@ The datasets are created by ourselves so if you need citation just use the citat
 
 If you have trouble accessing Huggingface Hub, download the data via:
 ```
-wget https://github.com/liyucheng09/Selective_Context/releases/download/v0.1.0/data_dumps.zip
+wget https://github.com/liyucheng09/Selective_Context/releases/download/v0.1.0rc1/data_dumps.zip
 ```
 
 ## Citation

@@ -106,18 +106,6 @@ If you find this repository helpful or use our method in your research, please c
 }
 ```
 
-The previous version:
-```
-@misc{li2023unlocking,
-      title={Unlocking Context Constraints of LLMs: Enhancing Context Efficiency of LLMs with Self-Information-Based Content Filtering}, 
-      author={Yucheng Li},
-      year={2023},
-      eprint={2304.12102},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
-}
-```
-
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

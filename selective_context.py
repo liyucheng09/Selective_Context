@@ -132,7 +132,7 @@ class SelectiveContext:
         input_ids = encoding['input_ids']
         input_ids_expaned = input_ids[:, 1:].unsqueeze(-1)
 
-        tokens = [self.tokenizer.convert_ids_to_tokens(token_).replace('_', ' ') for token_ in input_ids.squeeze().tolist()[1:]]
+        tokens = [self.tokenizer.convert_ids_to_tokens(token_).replace('▁', ' ') for token_ in input_ids.squeeze().tolist()[1:]]
         return tokens, self_info[:, :-1].gather(-1, input_ids_expaned).squeeze(-1).squeeze(0).tolist()
     
     def _get_self_info_via_curie(self, text: str) -> Tuple[List[str], List[float]]:

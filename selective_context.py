@@ -116,6 +116,25 @@ class SelectiveContext:
         tokens = [self.tokenizer.decode(token_) for token_ in input_ids.squeeze().tolist()[1:]]
         return tokens, self_info[:, :-1].gather(-1, input_ids_expaned).squeeze(-1).squeeze(0).tolist()
     
+    def _get_self_info_via_llama2(self, text: str) -> Tuple[List[str], List[float]]:
+        if self.lang == 'en':
+            text = f"<s>{text}"
+        elif self.lang == 'zh':
+            text = f"[CLS]{text}"
+        with torch.no_grad():
+            encoding = self.tokenizer(text, add_special_tokens=False, return_tensors='pt')
+            encoding = encoding.to(self.device)
+            outputs = self.model(**encoding)
+            logits = outputs.logits
+            probs = torch.softmax(logits, dim=-1)
+            self_info = -torch.log(probs)
+        
+        input_ids = encoding['input_ids']
+        input_ids_expaned = input_ids[:, 1:].unsqueeze(-1)
+
+        tokens = [self.tokenizer.convert_ids_to_tokens(token_).replace('_', ' ') for token_ in input_ids.squeeze().tolist()[1:]]
+        return tokens, self_info[:, :-1].gather(-1, input_ids_expaned).squeeze(-1).squeeze(0).tolist()
+    
     def _get_self_info_via_curie(self, text: str) -> Tuple[List[str], List[float]]:
         num_retry = 3
         openai.api_key = os.environ["OPENAI_API_KEY"]
